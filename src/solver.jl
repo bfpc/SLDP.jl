@@ -1,0 +1,227 @@
+function default_rho_policy(niter :: Int, t :: Int, i=1 :: Int)
+  return max(0, min(10, (t-10)/10))
+end
+
+function prepareALD!(m :: SDDP.SDDPModel, rho_policy=default_rho_policy)
+  for stage in SDDP.stages(m)
+    sp = stage.subproblems[1]
+    stage.ext[:ALDbounds] = [[st.lb, st.ub] for st in aldstates(sp)]
+    stage.ext[:rhos] = rho_policy
+  end
+end
+
+function SDDP.postsolve!(:: Type{SDDP.ForwardPass}, m :: SDDP.Model, sp :: JuMP.Model)
+  t = SDDP.ext(sp).stage
+  stage = SDDP.getstage(m, t)
+  for (st,b) in zip(aldstates(sp), stage.ext[:ALDbounds])
+    b[1] = st.lb
+    b[2] = st.ub
+  end
+end
+
+# Adjusts the inequalities to calculate |z - xin| during ALD
+function set_xhat_av!(sp::JuMP.Model, xhat)
+  for (st,xi) in zip(aldstates(sp), xhat)
+    JuMP.setRHS(st.av_c1,  xi)
+    JuMP.setRHS(st.av_c2, -xi)
+  end
+end
+
+function add_aldcut!(m::SDDP.SDDPModel, sp::JuMP.Model, xhat, v, l, rho, niter)
+  _theta = SDDP.valueoracle(sp).theta
+  push!(aldcuts(sp), ALDCut(copy(xhat), v, l, rho))
+
+  aff_expr = v
+  for (st,xi,li) in zip(aldstates(sp), xhat, l)
+    pos_part = @variable(sp, lowerbound=0, basename="theta_pos_"*string(niter))
+    neg_part = @variable(sp, lowerbound=0, basename="theta_neg_"*string(niter))
+    bin_choose = @variable(sp, category=:Bin, basename="theta_bin_"*string(niter))
+
+    @constraint(sp, pos_part <= bin_choose * (st.ub - xi))
+    @constraint(sp, neg_part <= (1-bin_choose) * (xi - st.lb))
+    @constraint(sp, pos_part - neg_part == st.xout - xi)
+    aff_expr += li*(st.xout - xi) - rho*sum(pos_part+neg_part)
+  end
+  @constraint(sp, _theta >= aff_expr)
+end
+
+function saveInfeasible(sp :: JuMP.Model)
+  filepath = joinpath(pwd(), "infeasible_subproblem.lp")
+  JuMP.writeLP(sp, filepath, genericnames=false)
+  error("""Model in stage $(SDDP.ext(sp).stage) and markov state $(SDDP.ext(sp).markovstate)
+        was not solved to Optimality. I wrote the offending LP file to
+        $(filepath).
+
+        This is most commonly caused by numerical issues with the solver.
+        Consider reformulating the model or try different solver parameters.
+        """)
+end
+
+# Overload how stage problems are solved in the backward pass
+# Copied from SDDiP/SDDP
+function SDDP.JuMPsolve(::Type{SDDP.BackwardPass}, m::SDDP.SDDPModel, sp::JuMP.Model)
+        direction = SDDP.BackwardPass
+        #@timeit TIMER "JuMP.solve" begin
+        # @assert JuMP.solve(sp) == :Optimal
+        SDDP.presolve!(direction, m, sp)
+
+        TT = STDOUT
+        _rd,_wr = redirect_stdout()
+        status = try
+          SDDP.jumpsolve(sp, require_duals=true)
+        finally
+          redirect_stdout(TT)
+          close(_rd); close(_wr)
+        end
+
+        if status != :Optimal
+            saveInfeasible(sp)
+        end
+        SDDP.postsolve!(direction, m, sp)
+        #end
+end
+
+
+function set_ald_objective!(sp::JuMP.Model, π)
+  aff_expr = 0
+  xhat = sp.ext[:ALD].xin_v
+  rho  = sp.ext[:ALD].rho[1]
+  set_xhat_av!(sp, xhat)
+  for (st,xi,li) in zip(aldstates(sp),xhat, π)
+    aff_expr += li * (xi - st.xin) + rho*st.av
+  end
+  sp.obj += aff_expr
+end
+
+function get_info_prevstage!(sp::JuMP.Model, m::SDDP.SDDPModel, t)
+  ext = sp.ext[:ALD]
+  prev_st = SDDP.getstage(m,t)
+  for (i,b) in enumerate(prev_st.ext[:ALDbounds])
+    ext.xin_lb[i] = b[1]
+    ext.xin_ub[i] = b[2]
+  end
+  for (i,xi) in enumerate(prev_st.state)
+    ext.xin_v[i] = xi
+  end
+end
+
+# Modify SDDP.backwardpass! because we must empty! all vstore/lstore for ALD,
+# over _all_ subproblems in current stage (not only the current stage)
+import SDDP
+function SDDP.backwardpass!(m::SDDP.SDDPModel, settings::SDDP.Settings)
+    niter = length(m.log)
+    # walk backward through the stages
+    for t in SDDP.nstages(m):-1:2
+        # solve all stage t problems
+        SDDP.reset!(m.storage)
+        rho = SDDP.getstage(m,t).ext[:rhos](niter, t)
+        for sp in SDDP.subproblems(m, t)
+            SDDP.setstates!(m, sp)
+            sp.ext[:ALD].rho[1] = rho
+            # Hack, should be done in forward pass
+            get_info_prevstage!(sp, m, t-1)
+            empty!(sp.ext[:ALD].vstore)
+            empty!(sp.ext[:ALD].lstore)
+            SDDP.solvesubproblem!(SDDP.BackwardPass, m, sp)
+        end
+        # add appropriate cuts
+        xhat = SDDP.getstage(m, t-1).state
+        for sp in SDDP.subproblems(m, t-1)
+                #@timeit TIMER "Cut addition" begin
+                SDDP.modifyvaluefunction!(m, settings, sp)
+                if rho > 0
+                    # Correct this calculation with probabilities, Markov & risk
+                    sp_next = SDDP.subproblems(m,t)[1]
+                    v = mean(sp_next.ext[:ALD].vstore)
+                    l = mean(sp_next.ext[:ALD].lstore)
+                    #print("Objective values\n", v)
+                    #print("Lagrange mult\n", v)
+                    add_aldcut!(m, sp, xhat, v, l, rho, niter)
+                end
+                #end
+        end
+    end
+    SDDP.reset!(m.storage)
+    for sp in SDDP.subproblems(m, 1)
+        SDDP.solvesubproblem!(SDDP.BackwardPass, m, sp)
+    end
+    return dot(m.storage.objective, m.storage.probability)
+end
+
+# The solvehook
+function ASDDiPsolve!(sp::JuMP.Model; require_duals::Bool=false, kwargs...)
+    solvers = sp.ext[:solvers]
+    if require_duals && SDDP.ext(sp).stage > 1
+        # Update the objective we cache in case the objective has noises
+        l = lagrangian(sp)
+        l.obj = JuMP.getobjective(sp)
+
+        # Strengthened Augmented Benders cut:
+        # Solve relaxation, then lift as possible.
+
+        # Get the LP duals
+        JuMP.setsolver(sp, solvers.LP)
+        @assert JuMP.solve(sp, ignore_solve_hook=true, relaxation=true) == :Optimal
+        π  = SDDP.getdual.(SDDP.states(sp))
+        # Update slacks because RHSs change each iteration
+        # l.slacks = getslack.(l.constraints)
+        # Relax bounds to formulate Lagrangian
+        Lagrangian.relaxandcache!(l, sp)
+        # Change the MIP objective
+        set_ald_objective!(sp, π)
+        # Solve the Lagrangian, with LP πs chosen and fixed
+        JuMP.setsolver(sp, solvers.MIP)
+        #println()
+        #print(sp)
+        #print("Solving ALD here, <ENTER> to continue:")
+        #readline()
+        status = JuMP.solve(sp, ignore_solve_hook=true)
+        push!(sp.ext[:ALD].vstore, JuMP.getobjectivevalue(sp))
+        push!(sp.ext[:ALD].lstore, π)
+        # Undo changes
+        sp.obj = l.obj
+        Lagrangian.recover!(l, sp, π)
+
+        # Solve original problem again to have correct level for automatic SDDP Benders cut
+        if sp.ext[:ALD].rho[1] > 0
+          JuMP.setsolver(sp, solvers.LP)
+          JuMP.solve(sp, ignore_solve_hook=true, relaxation=true)
+        end
+    else
+        # We are in the forward pass, or we are in stage 1
+        JuMP.setsolver(sp, solvers.MIP)
+        status = JuMP.solve(sp, ignore_solve_hook=true)
+        #println("Objective at stage ", SDDP.ext(sp).stage, " going forward: ", JuMP.getobjectivevalue(sp))
+    end
+    status
+end
+
+"""
+    setSDDiPsolver!(sp::JuMP.Model; method=Subgradient(0.0), pattern=Pattern(), MIPsolver=sp.solver, LPsolver=MIPsolver)
+
+Sets a JuMP solvehook for integer SDDP to stage problem `sp` that will call a
+a Lagrangian solver of type `method.` Argument `pattern` can be used to specify
+a pattern of different cut types.
+
+You should specify an LP/MIP solver if you are using different cut types in a cut
+pattern, and you are not using a solver that can solve both MIPs and LPs.
+"""
+function setASDDiPsolver!(sp::JuMP.Model; MIPsolver=sp.solver, LPsolver=MIPsolver)
+    n = length(SDDP.states(sp))
+    sp.ext[:ALD] = ALDExtension([],zeros(n),zeros(n),zeros(n),[],[],[1.5],[])
+
+    constraints = SDDP.LinearConstraint[]
+    for s in SDDP.states(sp)
+        # xinₜ = xoutₜ₋₁ is being relaxed
+        push!(constraints, s.constraint)
+        s0 = sp.linconstr[s.constraint.idx].terms.vars[1]
+        ald_statevariable!(sp, s0, s.variable, s.constraint)
+    end
+
+
+    sp.ext[:Lagrangian] = Lagrangian.LinearProgramData(JuMP.QuadExpr(),         # objective
+                                           constraints)         # relaxed constraints
+    sp.ext[:solvers] = MixedSolvers(LPsolver, MIPsolver)
+
+    JuMP.setsolvehook(sp, ASDDiPsolve!)
+end
