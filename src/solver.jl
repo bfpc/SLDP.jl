@@ -122,6 +122,7 @@ function SDDP.backwardpass!(m::SDDP.SDDPModel, settings::SDDP.Settings)
             get_info_prevstage!(sp, m, t-1)
             empty!(sp.ext[:ALD].vstore)
             empty!(sp.ext[:ALD].lstore)
+            empty!(sp.ext[:ALD].rhostore)
             SDDP.solvesubproblem!(SDDP.BackwardPass, m, sp)
         end
         # add appropriate cuts
@@ -129,14 +130,17 @@ function SDDP.backwardpass!(m::SDDP.SDDPModel, settings::SDDP.Settings)
         for sp in SDDP.subproblems(m, t-1)
                 #@timeit TIMER "Cut addition" begin
                 SDDP.modifyvaluefunction!(m, settings, sp)
-                if rho > 0
+                if true
                     # Correct this calculation with probabilities, Markov & risk
                     sp_next = SDDP.subproblems(m,t)[1]
                     v = mean(sp_next.ext[:ALD].vstore)
                     l = mean(sp_next.ext[:ALD].lstore)
+                    rho = mean(sp_next.ext[:ALD].rhostore)
                     #print("Objective values\n", v)
                     #print("Lagrange mult\n", v)
-                    add_aldcut!(m, sp, xhat, v, l, rho, niter)
+                    if rho > 0
+                      add_aldcut!(m, sp, xhat, v, l, rho, niter)
+                    end
                 end
                 #end
         end
@@ -171,19 +175,96 @@ function ASDDiPsolve!(sp::JuMP.Model; require_duals::Bool=false, kwargs...)
         set_ald_objective!(sp, π)
         # Solve the Lagrangian, with LP πs chosen and fixed
         JuMP.setsolver(sp, solvers.MIP)
-        #println()
-        #print(sp)
-        #print("Solving ALD here, <ENTER> to continue:")
-        #readline()
         status = JuMP.solve(sp, ignore_solve_hook=true)
         push!(sp.ext[:ALD].vstore, JuMP.getobjectivevalue(sp))
         push!(sp.ext[:ALD].lstore, π)
+        push!(sp.ext[:ALD].rhostore, sp.ext[:ALD].rho[1])
         # Undo changes
         sp.obj = l.obj
         Lagrangian.recover!(l, sp, π)
 
         # Solve original problem again to have correct level for automatic SDDP Benders cut
         if sp.ext[:ALD].rho[1] > 0
+          JuMP.setsolver(sp, solvers.LP)
+          JuMP.solve(sp, ignore_solve_hook=true, relaxation=true)
+        end
+    else
+        # We are in the forward pass, or we are in stage 1
+        JuMP.setsolver(sp, solvers.MIP)
+        status = JuMP.solve(sp, ignore_solve_hook=true)
+        #println("Objective at stage ", SDDP.ext(sp).stage, " going forward: ", JuMP.getobjectivevalue(sp))
+    end
+    status
+end
+
+function bissect_rho(sp, mipvalue, minrho, maxrho, valuetol=1e-3, rhotol=1e-3)
+  candidate = (minrho + maxrho)/2
+  sp.ext[:ALD].rho[1] = candidate
+  # Change the MIP objective
+  set_ald_objective!(sp, π)
+  #print("Solving for rho = $candidate, ")
+  status = JuMP.solve(sp, ignore_solve_hook=true)
+  curvalue = JuMP.getobjectivevalue(sp)
+  # Go back to previous objective
+  sp.obj = lagrangian(sp).obj
+  #println("got $curvalue, while MIP = $mipvalue")
+  if maxrho - minrho > rhotol
+    if mipvalue - curvalue > valuetol
+      #println("Bissecting $candidate, $maxrho")
+      return bissect_rho(sp, mipvalue, candidate, maxrho, valuetol, rhotol)
+    else
+      #println("Bissecting $minrho, $candidate")
+      return bissect_rho(sp, mipvalue, minrho, candidate, valuetol, rhotol)
+    end
+  else
+    #println("Done: $minrho, $candidate, $maxrho, $mipvalue, $curvalue")
+    return candidate, status
+  end
+end
+
+# Optimal rho solvehook
+function ASDDiPsolve_optrho!(sp::JuMP.Model; require_duals::Bool=false, kwargs...)
+    solvers = sp.ext[:solvers]
+    if require_duals && SDDP.ext(sp).stage > 1
+        # Update the objective we cache in case the objective has noises
+        l = lagrangian(sp)
+        l.obj = JuMP.getobjective(sp)
+
+        # Strengthened Augmented Benders cut:
+        # Solve relaxation, then lift to optimal \rho
+
+        # Get optimal MIP value
+        println("Solving stage $(SDDP.ext(sp).stage) backwards")
+        @assert JuMP.solve(sp, ignore_solve_hook=true) == :Optimal
+        mipvalue = JuMP.getobjectivevalue(sp)
+        #println("Got MIP value = $mipvalue")
+
+        # Get the LP duals
+        JuMP.setsolver(sp, solvers.LP)
+        @assert JuMP.solve(sp, ignore_solve_hook=true, relaxation=true) == :Optimal
+        curvalue = JuMP.getobjectivevalue(sp)
+        #println("Got LP value = $curvalue")
+        π  = SDDP.getdual.(SDDP.states(sp))
+
+        if curvalue == mipvalue
+          optrho = 0
+          status = :Optimal
+          println(optrho, " ", status)
+        else
+          # Update slacks because RHSs change each iteration
+          # l.slacks = getslack.(l.constraints)
+          # Relax bounds to formulate Lagrangian
+          Lagrangian.relaxandcache!(l, sp)
+          JuMP.setsolver(sp, solvers.MIP)
+          optrho,status = bissect_rho(sp, mipvalue, 0, sp.ext[:ALD].Lip)
+          println(optrho, " ", status)
+          push!(sp.ext[:ALD].vstore, JuMP.getobjectivevalue(sp))
+          push!(sp.ext[:ALD].lstore, π)
+          push!(sp.ext[:ALD].rhostore, optrho)
+
+          # Undo changes
+          Lagrangian.recover!(l, sp, π)
+          # Solve original problem again to have correct level for automatic SDDP Benders cut
           JuMP.setsolver(sp, solvers.LP)
           JuMP.solve(sp, ignore_solve_hook=true, relaxation=true)
         end
@@ -208,7 +289,7 @@ pattern, and you are not using a solver that can solve both MIPs and LPs.
 """
 function setASDDiPsolver!(sp::JuMP.Model; MIPsolver=sp.solver, LPsolver=MIPsolver)
     n = length(SDDP.states(sp))
-    sp.ext[:ALD] = ALDExtension([],zeros(n),zeros(n),zeros(n),[],[],[1.5],[])
+    sp.ext[:ALD] = ALDExtension([],10,zeros(n),zeros(n),zeros(n),[],[],[],[1.5],[])
 
     constraints = SDDP.LinearConstraint[]
     for s in SDDP.states(sp)

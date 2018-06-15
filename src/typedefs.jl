@@ -32,15 +32,17 @@ end
 struct ALDExtension
   # The extended state variable information needed for ALD cuts
   states :: Vector{ALDState}
+  Lip    :: Float64
 
   # Dynamic information (reset at each backwards pass)
   # xin information (lb/ub might depend on Markov state, current value always),
   xin_lb :: Vector{Float64}
   xin_v  :: Vector{Float64}
   xin_ub :: Vector{Float64}
-  # (v,l) pairs,  push!-ed for each noise
+  # (v,l,rho) triple,  push!-ed for each noise
   vstore :: Vector{Float64}
   lstore :: Vector{Vector{Float64}}
+  rhostore :: Vector{Float64}
 
   # "Evolution information": current \rho, list of ALD cuts added
   rho    :: Vector{Float64}
