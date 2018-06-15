@@ -3,11 +3,15 @@ import SDDP
 
 function estimatevf(sp::JuMP.Model, ts)
   vf = []
-  for c in aldcuts(sp)
+  ac = aldcuts(sp)
+  if length(ac) == 0
+    return zeros(ts)
+  end
+  for c in ac
     vf_i = [c.v + dot(c.l, ti - c.xi) - c.rho*norm(ti - c.xi, 1) for ti in ts]
     push!(vf, vf_i)
   end
-  maximum(hcat(vf...), 2)
+  maximum(hcat(vf...), 2)[:,1]
 end
 
 function qbar(sp::JuMP.Model)
