@@ -1,5 +1,5 @@
 function default_rho_policy(niter :: Int, t :: Int, i=1 :: Int)
-  return max(0, min(10, (t-10)/10))
+  return clamp((niter-10)/10, 0, 10)
 end
 
 function prepareALD!(m :: SDDP.SDDPModel, rho_policy=default_rho_policy)
