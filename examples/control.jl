@@ -7,20 +7,21 @@ using ASDDiP
 
 # =============
 # \rho policies
+Lip(t) = (1 - discount^(8+1-t))/(1 - discount)*discount^(t-1)
 function rho_ramp(niter, t, i=1)
-  Lip = (1 - discount^(8+1-t))/(1 - discount)
-  ans = Lip * clamp((niter-15)/15, 0, 1)
-  return ans
+  Lip(t) * clamp((niter-15)/15, 0, 1)
 end
 
 function rho_ramp_parallel(niter, t, i=1)
-  Lip = (1 - discount^(8+1-t))/(1 - discount)
-  ans = clamp((niter-15)/15, 0, 1*Lip)
-  return ans
+  clamp((niter-15)/15, 0, Lip(t))
+end
+
+function rho_ramp_parallel2(niter, t, i=1)
+  clamp((niter-15)/15, 0, 2*Lip(t))
 end
 
 function rho_zero(niter, t, i=1)
-  return 0
+  0
 end
 
 
@@ -78,6 +79,8 @@ elseif ramp_mode == :simple
   prepareALD!(m, rho_ramp)
 elseif ramp_mode == :parallel
   prepareALD!(m, rho_ramp_parallel)
+elseif ramp_mode == :parallel2
+  prepareALD!(m, rho_ramp_parallel2)
 else
   warn("Invalid ramp mode $(ramp_mode).  Not using ALD cuts, only Strenghtened Benders.")
   prepareALD!(m, rho_zero)
