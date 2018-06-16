@@ -197,7 +197,7 @@ function ASDDiPsolve!(sp::JuMP.Model; require_duals::Bool=false, kwargs...)
     status
 end
 
-function bissect_rho(sp, mipvalue, minrho, maxrho, valuetol=1e-3, rhotol=1e-3)
+function bissect_rho(sp, π, mipvalue, minrho, maxrho, valuetol=1e-3, rhotol=1e-3)
   candidate = (minrho + maxrho)/2
   sp.ext[:ALD].rho[1] = candidate
   # Change the MIP objective
@@ -211,10 +211,10 @@ function bissect_rho(sp, mipvalue, minrho, maxrho, valuetol=1e-3, rhotol=1e-3)
   if maxrho - minrho > rhotol
     if mipvalue - curvalue > valuetol
       #println("Bissecting $candidate, $maxrho")
-      return bissect_rho(sp, mipvalue, candidate, maxrho, valuetol, rhotol)
+      return bissect_rho(sp, π, mipvalue, candidate, maxrho, valuetol, rhotol)
     else
       #println("Bissecting $minrho, $candidate")
-      return bissect_rho(sp, mipvalue, minrho, candidate, valuetol, rhotol)
+      return bissect_rho(sp, π, mipvalue, minrho, candidate, valuetol, rhotol)
     end
   else
     #println("Done: $minrho, $candidate, $maxrho, $mipvalue, $curvalue")
@@ -256,7 +256,7 @@ function ASDDiPsolve_optrho!(sp::JuMP.Model; require_duals::Bool=false, kwargs..
           # Relax bounds to formulate Lagrangian
           Lagrangian.relaxandcache!(l, sp)
           JuMP.setsolver(sp, solvers.MIP)
-          optrho,status = bissect_rho(sp, mipvalue, 0, sp.ext[:ALD].Lip)
+          optrho,status = bissect_rho(sp, π, mipvalue, 0, sp.ext[:ALD].Lip)
           println(optrho, " ", status)
           push!(sp.ext[:ALD].vstore, JuMP.getobjectivevalue(sp))
           push!(sp.ext[:ALD].lstore, π)
