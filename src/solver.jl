@@ -27,8 +27,12 @@ function set_xhat_av!(sp::JuMP.Model, xhat)
   end
 end
 
-function add_aldcut!(m::SDDP.SDDPModel, sp::JuMP.Model, xhat, v, l, rho, niter)
+function add_aldcut!(m::SDDP.SDDPModel, sp::JuMP.Model, v, l, rho)
   _theta = SDDP.valueoracle(sp).theta
+  t = SDDP.ext(sp).stage
+  xhat = SDDP.getstage(m, t).state
+  niter = length(m.log)
+
   push!(aldcuts(sp), ALDCut(copy(xhat), v, l, rho))
 
   aff_expr = v
@@ -60,25 +64,24 @@ end
 # Overload how stage problems are solved in the backward pass
 # Copied from SDDiP/SDDP
 function SDDP.JuMPsolve(::Type{SDDP.BackwardPass}, m::SDDP.SDDPModel, sp::JuMP.Model)
-        direction = SDDP.BackwardPass
-        #@timeit TIMER "JuMP.solve" begin
-        # @assert JuMP.solve(sp) == :Optimal
-        SDDP.presolve!(direction, m, sp)
+    direction = SDDP.BackwardPass
+    SDDP.presolve!(direction, m, sp)
 
-        TT = STDOUT
-        _rd,_wr = redirect_stdout()
-        status = try
-          SDDP.jumpsolve(sp, require_duals=true)
-        finally
-          redirect_stdout(TT)
-          close(_rd); close(_wr)
-        end
+    TT = STDOUT
+    _rd,_wr = redirect_stdout()
+    status = try
+      @timeit SDDP.TIMER "Backwards jumpsolve w/ duals" begin
+        SDDP.jumpsolve(sp, require_duals=true)
+      end
+    finally
+      redirect_stdout(TT)
+      close(_rd); close(_wr)
+    end
 
-        if status != :Optimal
-            saveInfeasible(sp)
-        end
-        SDDP.postsolve!(direction, m, sp)
-        #end
+    if status != :Optimal
+      saveInfeasible(sp)
+    end
+    SDDP.postsolve!(direction, m, sp)
 end
 
 
@@ -126,23 +129,11 @@ function SDDP.backwardpass!(m::SDDP.SDDPModel, settings::SDDP.Settings)
             SDDP.solvesubproblem!(SDDP.BackwardPass, m, sp)
         end
         # add appropriate cuts
-        xhat = SDDP.getstage(m, t-1).state
         for sp in SDDP.subproblems(m, t-1)
-                #@timeit TIMER "Cut addition" begin
+            @timeit SDDP.TIMER "Cut addition" begin
                 SDDP.modifyvaluefunction!(m, settings, sp)
-                if true
-                    # Correct this calculation with probabilities, Markov & risk
-                    sp_next = SDDP.subproblems(m,t)[1]
-                    v = mean(sp_next.ext[:ALD].vstore)
-                    l = mean(sp_next.ext[:ALD].lstore)
-                    rho = mean(sp_next.ext[:ALD].rhostore)
-                    #print("Objective values\n", v)
-                    #print("Lagrange mult\n", v)
-                    if rho > 0
-                      add_aldcut!(m, sp, xhat, v, l, rho, niter)
-                    end
-                end
-                #end
+                modify_ald_valuefunction!(m, settings, sp)
+            end
         end
     end
     SDDP.reset!(m.storage)
