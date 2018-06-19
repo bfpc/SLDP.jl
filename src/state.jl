@@ -21,7 +21,7 @@ function ald_statevariable!(m::JuMP.Model, xin::JuMP.Variable, xout::JuMP.Variab
       bound_error(xout)
     end
 
-    av = @variable(m, lowerbound=0, upperbound=Inf)
+    av = @variable(m, lowerbound=0, upperbound=Inf, basename="abs_dev_"*JuMP.getname(xin))
     push!(aldstates(m),
           ALDState(xin, xout, av, cc,
                    JuMP.@constraint(m, xin - xin0 <= av),
