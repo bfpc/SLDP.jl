@@ -33,6 +33,9 @@ end
 if !isdefined(:ramp_mode)
   ramp_mode = :None
 end
+if !isdefined(:niters)
+  niters = 0
+end
 
 # random noise
 srand(11111)
@@ -92,7 +95,11 @@ sim = SDDP.MonteCarloSimulation(
      terminate = false
     )
 
+if niters == 0
+  return
+end
+
 @time solvestatus = SDDP.solve(m,
-    iteration_limit = 100,
+    iteration_limit = niters,
     simulation = sim
    )
