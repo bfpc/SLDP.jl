@@ -51,7 +51,7 @@ m = SDDPModel(
         stages            = 8,
         objective_bound   = 0,
         solver            = GurobiSolver(OutputFlag=0)
-                                                ) do sp, stage
+       ) do sp, stage
 
     # ======================
     # State: x-axis position
@@ -84,6 +84,13 @@ elseif ramp_mode == :parallel
   prepareALD!(m, rho_ramp_parallel)
 elseif ramp_mode == :parallel2
   prepareALD!(m, rho_ramp_parallel2)
+elseif ramp_mode == :opt_rho
+  prepareALD!(m, rho_zero)
+  for stage in SDDP.stages(m)
+    for sp in SDDP.subproblems(stage)
+      JuMP.setsolvehook(sp, ASDDiP.ASDDiPsolve_optrho!)
+    end
+  end
 else
   warn("Invalid ramp mode $(ramp_mode).  Not using ALD cuts, only Strenghtened Benders.")
   prepareALD!(m, rho_zero)
@@ -95,11 +102,9 @@ sim = SDDP.MonteCarloSimulation(
      terminate = false
     )
 
-if niters == 0
-  return
+if niters > 0
+    @time solvestatus = SDDP.solve(m,
+        iteration_limit = niters,
+        simulation = sim
+       )
 end
-
-@time solvestatus = SDDP.solve(m,
-    iteration_limit = niters,
-    simulation = sim
-   )
