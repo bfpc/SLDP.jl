@@ -1,6 +1,23 @@
 import JuMP
 import SDDP
 
+function reject_stdout(f)
+    _stdout = STDOUT
+    stdout_rd, stdout_wr = redirect_stdout()
+
+    ret = try
+        f()
+    catch e
+        println("ERROR in capture_streams(): ", e)
+    finally
+        # restore
+        redirect_stdout(_stdout)
+        close(stdout_wr)
+        close(stdout_rd)
+    end
+    ret
+end
+
 function estimatevf(sp::JuMP.Model, states...)
     vf = []
     ac = ASDDiP.aldcuts(sp)
@@ -54,12 +71,12 @@ function Qtilde(sp::JuMP.Model, state::AbstractVector{Float64})
         vs = []
         for i in 1:length(ex.noiseprobability)
             SDDP.setnoise!(sp, ex.noises[i])
-            JuMP.solve(sp)
+            reject_stdout( JuMP.solve(sp) )
             push!(vs, JuMP.getobjectivevalue(sp))
         end
         return mean(vs)
     else
-        JuMP.solve(sp)
+        reject_stdout( JuMP.solve(sp) )
         return JuMP.getobjectivevalue(sp)
     end
 end
