@@ -1,6 +1,8 @@
 import JuMP
 import SDDP
 
+columns(m) = [m[:,i] for i in 1:size(m,2)]
+
 function reject_stdout(f)
     _stdout = STDOUT
     stdout_rd, stdout_wr = redirect_stdout()
@@ -36,7 +38,7 @@ function estimatevf(sp::JuMP.Model, states...)
         else
             ts = SDDP.mesh(states...)
         end
-        vf_i = [c.v + dot(c.l, ti - c.xi) - c.rho*norm(ti - c.xi, 1) for ti in ts]
+        vf_i = [c.v + dot(c.l, ti - c.xi) - c.rho*norm(ti - c.xi, 1) for ti in columns(ts)]
         push!(vf, vf_i)
     end
     maximum(hcat(vf...), 2)[:,1]
