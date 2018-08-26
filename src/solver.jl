@@ -88,8 +88,8 @@ end
 
 # Modify SDDP.backwardpass! because we must empty! all vstore/lstore for ALD,
 # over _all_ subproblems in current stage (not only the current stage)
-import SDDP
-function SDDP.backwardpass!(m::SDDP.SDDPModel, settings::SDDP.Settings)
+import SDDP: backwardpass!
+function backwardpass!(m::SDDP.SDDPModel, settings::SDDP.Settings)
     niter = length(m.log)
     # walk backward through the stages
     for t in SDDP.nstages(m):-1:2

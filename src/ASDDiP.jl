@@ -5,8 +5,9 @@ export setASDDiPsolver!, prepareALD!
 # Our Lagrangian solver
 include(joinpath(dirname(@__FILE__),"Lagrangian","Lagrangian.jl"))
 
-using SDDP, JuMP, Reexport
-import TimerOutputs: @timeit
+import SDDP
+using JuMP, Reexport
+using TimerOutputs: @timeit
 
 @reexport using .Lagrangian
 
