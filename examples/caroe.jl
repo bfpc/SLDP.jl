@@ -66,7 +66,7 @@ m = SDDPModel(
         sense             = :Min,
         stages            = 2,
         objective_bound   = -100,
-        solver            = GurobiSolver(OutputFlag=0)
+        solver            = GurobiSolver(OutputFlag=0,TimeLimit=60)
        ) do sp, stage
 
     # ========
