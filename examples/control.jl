@@ -40,8 +40,9 @@ end
 # random noise
 srand(11111)
 A_noise   = 0.4
-num_noise = 10
-noise = A_noise * randn(num_noise)
+num_noise = 5
+noise = randn(num_noise)
+noise = A_noise * [noise; -noise]
 
 
 # ==========
