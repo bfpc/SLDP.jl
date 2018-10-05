@@ -34,11 +34,11 @@ function estimatevf(sp::JuMP.Model, states...)
     end
     for c in ac
         if length(states) == 1
-           ts = states[1]
+            ts = states[1]
         else
-            ts = SDDP.mesh(states...)
+            ts = columns(SDDP.mesh(states...))
         end
-        vf_i = [c.v + dot(c.l, ti - c.xi) - c.rho*norm(ti - c.xi, 1) for ti in columns(ts)]
+        vf_i = [c.v + dot(c.l, ti - c.xi) - c.rho*norm(ti - c.xi, 1) for ti in ts]
         push!(vf, vf_i)
     end
     maximum(hcat(vf...), 2)[:,1]
