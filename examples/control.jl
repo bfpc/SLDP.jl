@@ -67,15 +67,16 @@ end
 
 # =======
 # Prepare
-if ramp_mode == :None
-  prepareALD!(m, rho_zero)
-elseif ramp_mode == :simple
-  prepareALD!(m, rho_ramp)
-elseif ramp_mode == :parallel
-  prepareALD!(m, rho_ramp_parallel)
-elseif ramp_mode == :parallel2
-  prepareALD!(m, rho_ramp_parallel2)
-elseif ramp_mode == :opt_rho
+rho_fun = Dict(
+  :None => rho_zero,
+  :simple => rho_ramp,
+  :parallel => rho_ramp_parallel,
+  :parallel2 => rho_ramp_parallel2,
+  :opt_rho => rho_zero
+ )
+
+
+if ramp_mode == :opt_rho
   prepareALD!(m, rho_zero)
   for stage in SDDP.stages(m)
     for sp in SDDP.subproblems(stage)
@@ -83,8 +84,12 @@ elseif ramp_mode == :opt_rho
     end
   end
 else
-  warn("Invalid ramp mode $(ramp_mode).  Not using ALD cuts, only Strenghtened Benders.")
-  prepareALD!(m, rho_zero)
+  try
+    prepareALD!(m, rho_fun[ramp_mode])
+  catch
+    warn("Invalid ramp mode $(ramp_mode).  Not using ALD cuts, only Strenghtened Benders.")
+    prepareALD!(m, rho_zero)
+  end
 end
 
 return m
