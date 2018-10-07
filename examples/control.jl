@@ -25,31 +25,21 @@ function rho_zero(niter, t, i=1)
 end
 
 
-# ==========
-# Parameters
-if !isdefined(:discount)
-  discount = 0.9
-end
-if !isdefined(:ramp_mode)
-  ramp_mode = :None
-end
-if !isdefined(:niters)
-  niters = 0
-end
-
-# random noise
+# =============
+# default noise
 srand(11111)
 A_noise   = 0.4
 num_noise = 5
 noise = randn(num_noise)
 noise = A_noise * [noise; -noise]
 
+function controlmodel(;nstages=8, discount=0.9, ramp_mode=:None, noise=noise)
 
 # ==========
 # SDDP Model
 m = SDDPModel(
         sense             = :Min,
-        stages            = 8,
+        stages            = nstages,
         objective_bound   = 0,
         solver            = GurobiSolver(OutputFlag=0)
        ) do sp, stage
@@ -75,8 +65,8 @@ m = SDDPModel(
     setASDDiPsolver!(sp)
 end
 
-# ===============
-# Prepare & solve
+# =======
+# Prepare
 if ramp_mode == :None
   prepareALD!(m, rho_zero)
 elseif ramp_mode == :simple
@@ -97,13 +87,16 @@ else
   prepareALD!(m, rho_zero)
 end
 
+return m
+end
+
 sim = SDDP.MonteCarloSimulation(
      frequency = 50,
      min  = 100, step = 50, max  = 200,
      terminate = false
     )
 
-if niters > 0
+function controlsolve(m, niters)
     @time solvestatus = SDDP.solve(m,
         iteration_limit = niters,
         simulation = sim
