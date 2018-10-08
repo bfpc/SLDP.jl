@@ -20,36 +20,32 @@ function reject_stdout(f)
     ret
 end
 
-function estimatevf(sp::JuMP.Model, states...)
-    vf = []
-    ac = ASDDiP.aldcuts(sp)
-    if length(ac) == 0
-        b = SDDP.ext(sp).problembound
-        if length(states) == 1
-            npts = length(states[1])
-        else
-            npts = length(states[1])*length(states[2])
-        end
-        return b * ones(npts)
+function cutvalue(c::ALDCut, ti)
+    c.v + dot(c.l, ti - c.xi) - c.rho*norm(ti - c.xi, 1)
+end
+
+function estimatevf(ac::Vector{ALDCut}, states...)
+    vf = Vector{Float64}[]
+    if length(states) == 1
+        return [maximum(cutvalue(c,ti) for c in ac) for ti in states[1]]
+    else
+        ts = columns(SDDP.mesh(states...)::Array{Float64,2})
+        return [maximum(cutvalue(c,ti) for c in ac) for ti in ts]
     end
-    for c in ac
-        if length(states) == 1
-            ts = states[1]
-        else
-            ts = columns(SDDP.mesh(states...))
-        end
-        vf_i = [c.v + dot(c.l, ti - c.xi) - c.rho*norm(ti - c.xi, 1) for ti in ts]
-        push!(vf, vf_i)
-    end
-    maximum(hcat(vf...), 2)[:,1]
 end
 
 function Qfrak(m,t,ms, states::Union{Float64, AbstractVector{Float64}}...)
     sp = SDDP.getsubproblem(m,t,ms)
     vf = SDDP.valueoracle(sp)
+    ac = aldcuts(sp)
+
     _, y_cont = SDDP.processvaluefunctiondata(vf, true, states...)
-    y_ald = estimatevf(sp, states...)
-    maximum(hcat(y_cont, y_ald), 2)[:,1]
+    if length(ac) == 0
+        return y_cont
+    else
+        y_ald = estimatevf(ac, states...)
+        return maximum(hcat(y_cont, y_ald), 2)[:,1]
+    end
 end
 
 function setstate!(sp::JuMP.Model, vs::AbstractVector{Float64})
