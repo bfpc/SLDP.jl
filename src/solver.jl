@@ -86,6 +86,38 @@ function get_info_prevstage!(sp::JuMP.Model, m::SDDP.SDDPModel, t)
   end
 end
 
+function make_cut(m, t, x, rho)
+    settings = SDDP.Settings()
+    close(settings.cut_output_file)
+    prev_stage = SDDP.getstage(m,t-1)
+    for (i,xi) in enumerate(x)
+        prev_stage.state[i] = xi
+    end
+    cut_it(m, t, rho, settings)
+end
+
+function cut_it(m::SDDP.SDDPModel, t::Int, rho::Float64, settings::SDDP.Settings)
+    # solve all stage t problems
+    SDDP.reset!(m.storage)
+    for sp in SDDP.subproblems(m, t)
+        SDDP.setstates!(m, sp)
+        sp.ext[:ALD].rho[1] = rho
+        # Hack, should be done in forward pass
+        ASDDiP.get_info_prevstage!(sp, m, t-1)
+        empty!(sp.ext[:ALD].vstore)
+        empty!(sp.ext[:ALD].lstore)
+        empty!(sp.ext[:ALD].rhostore)
+        SDDP.solvesubproblem!(SDDP.BackwardPass, m, sp)
+    end
+    # add appropriate cuts
+    for sp in SDDP.subproblems(m, t-1)
+        @timeit SDDP.TIMER "Cut addition" begin
+            SDDP.modifyvaluefunction!(m, settings, sp)
+            ASDDiP.modify_ald_valuefunction!(m, settings, sp)
+        end
+    end
+end
+
 # Modify SDDP.backwardpass! because we must empty! all vstore/lstore for ALD,
 # over _all_ subproblems in current stage (not only the current stage)
 import SDDP: backwardpass!
@@ -93,26 +125,8 @@ function backwardpass!(m::SDDP.SDDPModel, settings::SDDP.Settings)
     niter = length(m.log)
     # walk backward through the stages
     for t in SDDP.nstages(m):-1:2
-        # solve all stage t problems
-        SDDP.reset!(m.storage)
         rho = SDDP.getstage(m,t).ext[:rhos](niter, t)
-        for sp in SDDP.subproblems(m, t)
-            SDDP.setstates!(m, sp)
-            sp.ext[:ALD].rho[1] = rho
-            # Hack, should be done in forward pass
-            get_info_prevstage!(sp, m, t-1)
-            empty!(sp.ext[:ALD].vstore)
-            empty!(sp.ext[:ALD].lstore)
-            empty!(sp.ext[:ALD].rhostore)
-            SDDP.solvesubproblem!(SDDP.BackwardPass, m, sp)
-        end
-        # add appropriate cuts
-        for sp in SDDP.subproblems(m, t-1)
-            @timeit SDDP.TIMER "Cut addition" begin
-                SDDP.modifyvaluefunction!(m, settings, sp)
-                modify_ald_valuefunction!(m, settings, sp)
-            end
-        end
+        cut_it(m, t, rho, settings)
     end
     SDDP.reset!(m.storage)
     for sp in SDDP.subproblems(m, 1)
