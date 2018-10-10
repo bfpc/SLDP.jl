@@ -107,3 +107,29 @@ function controlsolve(m, niters)
         simulation = sim
        )
 end
+
+# Analytic solution exploiting symmetry
+cost(x::Float64) = abs(x)
+next_step(x::Float64) = (x >=0 ? x-1 : x+1)
+
+function Q2_bar(x2::T, nmax::Int, noise::AbstractArray{T,1}, beta=0.5::Float64, t=1::Int) where T
+    if t >= nmax
+        return 0.0
+    end
+
+    nsamples = length(noise)
+    ans = 0.0
+    for xi in noise
+        ans += solve_bin_sym(x2+xi, nmax, noise, beta, t+1)
+    end
+    return ans/nsamples
+end
+
+function solve_bin_sym(x::T, nmax::Int, noise::AbstractArray{T,1}, beta=0.5::Float64, t=1::Int) where T
+    if t > nmax
+        return 0.0
+    end
+
+    x2 = next_step(x)
+    return cost(x2) + beta*Q2_bar(x2, nmax, noise, beta, t)
+end
