@@ -96,7 +96,7 @@ function make_cut(m, t, x, rho)
     cut_it(m, t, rho, settings)
 end
 
-function cut_it(m::SDDP.SDDPModel, t::Int, rho::Float64, settings::SDDP.Settings)
+function cut_it(m::SDDP.SDDPModel, t::Int, rho::Real, settings::SDDP.Settings)
     # solve all stage t problems
     SDDP.reset!(m.storage)
     for sp in SDDP.subproblems(m, t)
