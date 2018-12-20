@@ -43,7 +43,7 @@ function modify_ald_valuefunction!(m::SDDP.SDDPModel{V}, settings::SDDP.Settings
     end
     modified_probability = zeros(current_transition)
     @timeit SDDP.TIMER "risk measure" begin
-        SDDP.modifyprobability!(ex.riskmeasure,
+        SDDP.modify_probability(ex.riskmeasure,
             modified_probability,
             current_transition,
             vs,
