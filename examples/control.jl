@@ -7,21 +7,21 @@ using ASDDiP
 
 # =============
 # \rho policies
-Lip(t) = (1 - discount^(8+1-t))/(1 - discount)*discount^(t-1)
+Lip(t) = (1.0 - discount^(8+1-t))/(1 - discount)*discount^(t-1)
 function rho_ramp(niter, t, i=1)
-  Lip(t) * clamp((niter-15)/15, 0, 1)
+  Lip(t) * clamp((niter-15)/15, 0.0, 1.0)
 end
 
 function rho_ramp_parallel(niter, t, i=1)
-  clamp((niter-15)/15, 0, Lip(t))
+  clamp((niter-15)/15, 0.0, Lip(t))
 end
 
 function rho_ramp_parallel2(niter, t, i=1)
-  clamp((niter-15)/15, 0, 2*Lip(t))
+  clamp((niter-15)/15, 0.0, 2*Lip(t))
 end
 
 function rho_zero(niter, t, i=1)
-  0
+  0.0
 end
 
 
