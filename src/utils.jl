@@ -34,12 +34,18 @@ function estimatevf(ac::Vector{ALDCut}, states...)
     end
 end
 
-function Qfrak(m,t,ms, states::Union{Float64, AbstractVector{Float64}}...)
+function Qfrak(m,t,ms, states::Union{Float64, AbstractVector{Float64}}...; ncuts=nothing)
     sp = SDDP.getsubproblem(m,t,ms)
     vf = SDDP.valueoracle(sp)
-    ac = aldcuts(sp)
 
-    _, y_cont = SDDP.processvaluefunctiondata(vf, true, states...)
+    ac = aldcuts(sp)
+    cuts = SDDP.valid_cuts(SDDP.cutoracle(vf))
+    if ncuts != nothing
+      ac = ac[1:ncuts]
+      cuts = cuts[1:ncuts]
+    end
+
+    _, y_cont = SDDP.processvaluefunctiondata(cuts, true, states...)
     if length(ac) == 0
         return y_cont
     else
