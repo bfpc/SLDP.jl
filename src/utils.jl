@@ -20,8 +20,8 @@ function reject_stdout(f)
     ret
 end
 
-function cutvalue(c::ALDCut, ti)
-    c.v + dot(c.l, ti - c.xi) - c.rho*norm(ti - c.xi, 1)
+function cutvalue(c::ALDCut, t)
+    c.v + dot(c.l, t - c.xhat) - c.rho*norm(t - c.xhat, 1)
 end
 
 function estimatevf(ac::Vector{ALDCut}, states...)

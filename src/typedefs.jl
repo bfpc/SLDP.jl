@@ -22,7 +22,7 @@ end
 # xi       basepoint for cut
 # v,l,rho  cut parameters
 struct ALDCut
-  xi  :: Vector{Float64}
+  xhat:: Vector{Float64}
   v   :: Float64
   l   :: Vector{Float64}
   rho :: Float64
