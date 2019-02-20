@@ -1,23 +1,29 @@
-function add_aldcut!(m::SDDP.SDDPModel, sp::JuMP.Model, v, l, rho)
-  _theta = SDDP.valueoracle(sp).theta
-  t = SDDP.ext(sp).stage
-  xhat = SDDP.getstage(m, t).state
-  niter = length(m.log)
+function add_aldcut!(sp::JuMP.Model, cut::ALDCut)
+  push!(aldcuts(sp), cut)
+  idx = length(aldcuts(sp))
 
-  push!(aldcuts(sp), ALDCut(copy(xhat), v, l, rho))
-
-  aff_expr = v
-  for (st,xi,li) in zip(aldstates(sp), xhat, l)
-    pos_part = @variable(sp, lowerbound=0, basename="theta_pos_"*string(niter))
-    neg_part = @variable(sp, lowerbound=0, basename="theta_neg_"*string(niter))
-    bin_choose = @variable(sp, category=:Bin, basename="theta_bin_"*string(niter))
+  aff_expr = cut.v
+  for (st,xi,li) in zip(aldstates(sp), cut.xhat, cut.l)
+    pos_part = @variable(sp, lowerbound=0, basename="theta_pos_"*string(idx))
+    neg_part = @variable(sp, lowerbound=0, basename="theta_neg_"*string(idx))
+    bin_choose = @variable(sp, category=:Bin, basename="theta_bin_"*string(idx))
 
     @constraint(sp, pos_part <= bin_choose * (st.ub - xi))
     @constraint(sp, neg_part <= (1-bin_choose) * (xi - st.lb))
     @constraint(sp, pos_part - neg_part == st.xout - xi)
-    aff_expr += li*(st.xout - xi) - rho*sum(pos_part+neg_part)
+    aff_expr += li*(st.xout - xi) - cut.rho*sum(pos_part+neg_part)
   end
+
+  _theta = SDDP.valueoracle(sp).theta
   @constraint(sp, _theta >= aff_expr)
+end
+
+
+function add_aldcut!(m::SDDP.SDDPModel, sp::JuMP.Model, v, l, rho)
+  t = SDDP.ext(sp).stage
+  xhat = SDDP.getstage(m, t).state
+
+  add_aldcut!(sp, ALDCut(copy(xhat), v, l, rho))
 end
 
 function modify_ald_valuefunction!(m::SDDP.SDDPModel{V}, settings::SDDP.Settings, sp::JuMP.Model) where V<:SDDP.DefaultValueFunction
@@ -61,4 +67,61 @@ function modify_ald_valuefunction!(m::SDDP.SDDPModel{V}, settings::SDDP.Settings
     end
 end
 
+"""
+    load_aldcuts!(m::SDDPModel, filename::String)
 
+Load ALD cuts from the file created using save_aldcuts(m, filename).
+
+### Example
+
+    m = SDDPModel() do ... end
+    status = solve(m; cut_output_file="path/to/m.cuts")`
+    save_aldcuts!(m; filename="path/to/m_ald.cuts")
+    m2 = SDDPModel() do ... end
+    loadcuts!(m2, "path/to/m.cuts")
+    load_aldcuts!(m; filename="path/to/m_ald.cuts")
+
+"""
+function load_aldcuts!(m::SDDP.SDDPModel{SDDP.DefaultValueFunction{C}}, filename::String) where C
+    open(filename, "r") do file
+        while true
+            line      = readline(file)
+            line == nothing || line == "" && break
+            items     = split(line, ",")
+            stage     = parse(Int, items[1])
+            ms        = parse(Int, items[2])
+            dim       = div(length(items) - 4, 2)
+            xhat      = [parse(Float64, i) for i in items[3:2+dim]]
+            intercept = parse(Float64, items[3+dim])
+            coefficients = [parse(Float64, i) for i in items[4+dim:end-1]]
+            rho       = parse(Float64, items[end])
+            cut = ALDCut(xhat, intercept, coefficients, rho)
+            sp = SDDP.getsubproblem(m, stage, ms)
+            add_aldcut!(sp, cut)
+        end
+    end
+end
+
+function write_aldcut!(io::IO, stage::Int, markovstate::Int, cut::ALDCut)
+    write(io, string(stage), ",", string(markovstate))
+    for xi in cut.xhat
+        write(io, ",", string(xi))
+    end
+    write(io, ",", string(cut.v))
+    for li in cut.l
+        write(io, ",", string(li))
+    end
+    write(io, ",", string(cut.rho), "\n")
+end
+
+function save_aldcuts!(m::SDDP.SDDPModel{SDDP.DefaultValueFunction{C}}, filename::String) where C
+    open(filename, "w") do file
+        for (t, stage) in enumerate(SDDP.stages(m))
+            for (j, sp) in enumerate(SDDP.subproblems(stage))
+                for cut in aldcuts(sp)
+                    write_aldcut!(file, t, j, cut)
+                end
+            end
+        end
+    end
+end
