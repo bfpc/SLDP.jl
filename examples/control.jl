@@ -24,6 +24,15 @@ function rho_zero(niter, t, i=1)
   0.0
 end
 
+# And dictionnary
+rho_fun = Dict(
+  :None => rho_zero,
+  :simple => rho_ramp,
+  :parallel => rho_ramp_parallel,
+  :parallel2 => rho_ramp_parallel2,
+  :opt_rho => rho_zero
+ )
+
 
 # =============
 # default noise
@@ -67,15 +76,6 @@ end
 
 # =======
 # Prepare
-rho_fun = Dict(
-  :None => rho_zero,
-  :simple => rho_ramp,
-  :parallel => rho_ramp_parallel,
-  :parallel2 => rho_ramp_parallel2,
-  :opt_rho => rho_zero
- )
-
-
 if ramp_mode == :opt_rho
   prepareALD!(m, rho_zero)
   for stage in SDDP.stages(m)
