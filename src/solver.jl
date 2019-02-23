@@ -2,10 +2,11 @@ function default_rho_policy(niter :: Int, t :: Int, i=1 :: Int)
   return clamp((niter-10)/10, 0, 10)
 end
 
-function prepareALD!(m :: SDDP.SDDPModel, rho_policy=default_rho_policy)
+function prepareALD!(m :: SDDP.SDDPModel, Lip::Function, rho_policy=default_rho_policy)
   for stage in SDDP.stages(m)
     sp = stage.subproblems[1]
     stage.ext[:ALDbounds] = [[st.lb, st.ub] for st in aldstates(sp)]
+    stage.ext[:Lip]  = Lip(stage.t)
     stage.ext[:rhos] = rho_policy
   end
 end
@@ -125,7 +126,9 @@ function backwardpass!(m::SDDP.SDDPModel, settings::SDDP.Settings)
     niter = length(m.log)
     # walk backward through the stages
     for t in SDDP.nstages(m):-1:2
-        rho = SDDP.getstage(m,t).ext[:rhos](niter, t)
+        stage = SDDP.getstage(m,t)
+        Lip = stage.ext[:Lip]
+        rho = stage.ext[:rhos](niter, Lip)
         cut_it(m, t, rho, settings)
     end
     SDDP.reset!(m.storage)

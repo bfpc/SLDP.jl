@@ -7,20 +7,19 @@ using ASDDiP
 
 # =============
 # \rho policies
-Lip(t) = (1.0 - discount^(8+1-t))/(1 - discount)*discount^(t-1)
-function rho_ramp(niter, t, i=1)
-  Lip(t) * clamp((niter-15)/15, 0.0, 1.0)
+function rho_ramp(niter, Lip, i=1)
+  Lip * clamp((niter-15)/15, 0.0, 1.0)
 end
 
-function rho_ramp_parallel(niter, t, i=1)
-  clamp((niter-15)/15, 0.0, Lip(t))
+function rho_ramp_parallel(niter, Lip, i=1)
+  clamp((niter-15)/15, 0.0, Lip)
 end
 
-function rho_ramp_parallel2(niter, t, i=1)
-  clamp((niter-15)/15, 0.0, 2*Lip(t))
+function rho_ramp_parallel2(niter, Lip, i=1)
+  clamp((niter-15)/15, 0.0, 2*Lip)
 end
 
-function rho_zero(niter, t, i=1)
+function rho_zero(niter, Lip, i=1)
   0.0
 end
 
@@ -74,10 +73,16 @@ m = SDDPModel(
     setASDDiPsolver!(sp)
 end
 
+# ==================
+# Lipschitz constant
+function Lip(t)
+    return (1.0 - discount^(nstages+1-t))/(1 - discount)*discount^(t-1)
+end
+
 # =======
 # Prepare
 if ramp_mode == :opt_rho
-  prepareALD!(m, rho_zero)
+  prepareALD!(m, Lip, rho_zero)
   for stage in SDDP.stages(m)
     for sp in SDDP.subproblems(stage)
       JuMP.setsolvehook(sp, ASDDiP.ASDDiPsolve_optrho!)
@@ -85,10 +90,10 @@ if ramp_mode == :opt_rho
   end
 else
   try
-    prepareALD!(m, rho_fun[ramp_mode])
+    prepareALD!(m, Lip, rho_fun[ramp_mode])
   catch
     warn("Invalid ramp mode $(ramp_mode).  Not using ALD cuts, only Strenghtened Benders.")
-    prepareALD!(m, rho_zero)
+    prepareALD!(m, Lip, rho_zero)
   end
 end
 
