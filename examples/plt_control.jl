@@ -1,3 +1,6 @@
+import ASDDiP
+
+#
 # Analytic solution exploiting symmetry
 cost(x::Float64) = abs(x)
 next_step(x::Float64) = (x >=0 ? x-1 : x+1)
@@ -24,6 +27,7 @@ function solve_bin_sym(x::T, nmax::Int, noise::AbstractArray{T,1}, beta=0.5::Flo
     return cost(x2) + beta*Q2_bar(x2, nmax, noise, beta, t)
 end
 
+# Comparative plots
 function graph_fcfs(m, t, ts, QTrue; filename=nothing)
     qe = QTrue
     qt = ASDDiP.Qtilde(m,t,1,ts)
