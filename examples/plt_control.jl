@@ -27,6 +27,20 @@ function solve_bin_sym(x::T, nmax::Int, noise::AbstractArray{T,1}, beta=0.5::Flo
     return cost(x2) + beta*Q2_bar(x2, nmax, noise, beta, t)
 end
 
+#
+# Utility functions
+import SDDP
+function readlog!(m::SDDP.SDDPModel, filename)
+    open(filename, "r") do file
+        for li in readlines(file)
+            ls = split(li, ",")
+            vals = [parse(fieldtype(SDDP.SolutionLog,fn), String(v)) for (v,fn) in zip(ls,fieldnames(SDDP.SolutionLog))]
+            push!(m.log, SDDP.SolutionLog(vals...))
+        end
+    end
+end
+
+#
 # Comparative plots
 function graph_fcfs(m, t, ts, QTrue; filename=nothing)
     qe = QTrue
