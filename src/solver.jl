@@ -90,9 +90,10 @@ end
 function make_cut(m, t, x, rho)
     settings = SDDP.Settings()
     close(settings.cut_output_file)
-    prev_stage = SDDP.getstage(m,t-1)
+    prev_state = SDDP.getstage(m,t-1).state
+    SDDP.padvec!(prev_state, length(x))
     for (i,xi) in enumerate(x)
-        prev_stage.state[i] = xi
+        prev_state[i] = xi
     end
     cut_it(m, t, rho, settings)
 end
