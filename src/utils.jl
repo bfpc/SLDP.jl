@@ -10,7 +10,7 @@ function reject_stdout(f)
     ret = try
         f()
     catch e
-        println("ERROR in capture_streams(): ", e)
+        println("ERROR in reject_stdout(): ", e)
     finally
         # restore
         redirect_stdout(_stdout)
