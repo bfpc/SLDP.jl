@@ -2,7 +2,7 @@ import SDDP: SDDPModel, @state, @rhsnoise, @stageobjective
 import JuMP: @variable, @constraint
 import Gurobi: GurobiSolver
 
-using ASDDiP
+import ASDDiP: prepareALD!, setASDDiPsolver!
 
 
 # =============
