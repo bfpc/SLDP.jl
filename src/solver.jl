@@ -75,9 +75,10 @@ function set_ald_objective!(sp::JuMP.Model, π)
   sp.obj += aff_expr
 end
 
-function get_info_prevstage!(sp::JuMP.Model, m::SDDP.SDDPModel, t)
+function get_info_prevstage!(sp::JuMP.Model, m::SDDP.SDDPModel)
   ext = sp.ext[:ALD]
-  prev_st = SDDP.getstage(m,t)
+  t = sp.ext[:SDDP].stage
+  prev_st = SDDP.getstage(m,t-1)
   for (i,b) in enumerate(prev_st.ext[:ALDbounds])
     ext.xin_lb[i] = b[1]
     ext.xin_ub[i] = b[2]
@@ -105,7 +106,7 @@ function cut_it(m::SDDP.SDDPModel, t::Int, rho::Real, settings::SDDP.Settings)
         SDDP.setstates!(m, sp)
         sp.ext[:ALD].rho[1] = rho
         # Hack, should be done in forward pass
-        ASDDiP.get_info_prevstage!(sp, m, t-1)
+        ASDDiP.get_info_prevstage!(sp, m)
         empty!(sp.ext[:ALD].vstore)
         empty!(sp.ext[:ALD].lstore)
         empty!(sp.ext[:ALD].rhostore)
