@@ -68,25 +68,31 @@ function setstate!(sp::JuMP.Model, vs::AbstractVector{Float64})
     end
 end
 
-function Qtilde(sp::JuMP.Model, state::AbstractVector{Float64})
+function Qtilde(sp::JuMP.Model, state::AbstractVector{Float64}; relaxation::Bool=false)
     setstate!(sp,state)
     if SDDP.hasnoises(sp)
         ex = SDDP.ext(sp)
         vs = []
         for i in 1:length(ex.noiseprobability)
             SDDP.setnoise!(sp, ex.noises[i])
-            reject_stdout( JuMP.solve(sp) )
+            reject_stdout( JuMP.solve(sp, relaxation=relaxation, ignore_solve_hook=true) )
             push!(vs, JuMP.getobjectivevalue(sp))
         end
         return mean(vs)
     else
-        reject_stdout( JuMP.solve(sp) )
+        reject_stdout( JuMP.solve(sp, relaxation=relaxation, ignore_solve_hook=true) )
         return JuMP.getobjectivevalue(sp)
     end
 end
 
-function Qtilde(m,t,ms, states::Union{Float64, AbstractVector{Float64}}...; debug=false)
+function Qtilde(m::SDDP.SDDPModel,t::Int,ms::Int, states::Union{Float64, AbstractVector{Float64}}...; debug::Bool=false, relaxation::Bool=false)
     sp = SDDP.getsubproblem(m,t+1,ms)
+    solvers = sp.ext[:solvers]
+    if relaxation
+        JuMP.setsolver(sp, solvers.LP)
+    else
+        JuMP.setsolver(sp, solvers.MIP)
+    end
     ans = []
     if length(states) == 2
         m = SDDP.mesh(states...)
@@ -97,7 +103,7 @@ function Qtilde(m,t,ms, states::Union{Float64, AbstractVector{Float64}}...; debu
         if debug
             print(i, ", ")
         end
-        push!(ans, Qtilde(sp,m[:,i]))
+        push!(ans, Qtilde(sp,m[:,i], relaxation=relaxation))
     end
     if debug
         println()
