@@ -106,7 +106,7 @@ function cut_it(m::SDDP.SDDPModel, t::Int, rho::Real, settings::SDDP.Settings)
         SDDP.setstates!(m, sp)
         sp.ext[:ALD].rho[1] = rho
         # Hack, should be done in forward pass
-        ASDDiP.get_info_prevstage!(sp, m)
+        get_info_prevstage!(sp, m)
         empty!(sp.ext[:ALD].vstore)
         empty!(sp.ext[:ALD].lstore)
         empty!(sp.ext[:ALD].rhostore)
@@ -116,7 +116,7 @@ function cut_it(m::SDDP.SDDPModel, t::Int, rho::Real, settings::SDDP.Settings)
     for sp in SDDP.subproblems(m, t-1)
         @timeit SDDP.TIMER "Cut addition" begin
             SDDP.modifyvaluefunction!(m, settings, sp)
-            ASDDiP.modify_ald_valuefunction!(m, settings, sp)
+            modify_ald_valuefunction!(m, settings, sp)
         end
     end
 end
