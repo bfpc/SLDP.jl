@@ -33,21 +33,24 @@ rho_fun = Dict(
  )
 
 
-# ==============
-# Stage problems
+module MyData
 cost1 = [3/2 4]
-function stage1(sp)
-  x = sp[:x]
-  @stageobjective(sp, -sum(cost1*x))
+cost2 = [16 19 23 28]
 end
 
-cost2 = [16 19 23 28]
+# ==============
+# Stage problems
+function stage1(sp)
+  x = sp[:x]
+  @stageobjective(sp, -sum(MyData.cost1*x))
+end
+
 function stage2(sp, noise)
   x0 = sp[:x0]
   @variable(sp, y[1:4], Bin)
   @rhsnoise(sp, w=noise, sum([2 3 4 5]*y) <= w[1] - x0[1])
   @rhsnoise(sp, w=noise, sum([6 1 3 2]*y) <= w[2] - x0[2])
-  @stageobjective(sp, -sum(cost2*y))
+  @stageobjective(sp, -sum(MyData.cost2*y))
 end
 
 function caroe_model(;nstages=2, ramp_mode=:None, num_noise=2)
@@ -64,7 +67,7 @@ noise = 5 + noisestep*[[i-1,j-1] for i = noisegen for j = noisegen]
 m = SDDPModel(
         sense             = :Min,
         stages            = nstages,
-        objective_bound   = -(sum(cost1)*5 + sum(cost2)*(nstages-1)),
+        objective_bound   = -(sum(MyData.cost1)*5 + sum(MyData.cost2)*(nstages-1)),
         solver            = GurobiSolver(OutputFlag=0,TimeLimit=60)
        ) do sp, stage
 
