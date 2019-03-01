@@ -43,13 +43,17 @@ noise = A_noise * [noise; -noise]
 
 function controlmodel(;nstages=8, discount=0.9, ramp_mode=:None, noise=noise)
 
+# ======
+# Solver
+env = Gurobi.Env()
+
 # ==========
 # SDDP Model
 m = SDDPModel(
         sense             = :Min,
         stages            = nstages,
         objective_bound   = 0,
-        solver            = GurobiSolver(OutputFlag=0)
+        solver            = GurobiSolver(env,OutputFlag=0)
        ) do sp, stage
 
     # ======================

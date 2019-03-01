@@ -67,13 +67,17 @@ noisestep = 10/(num_noise - 1)
 noisegen = 1:num_noise
 noise = 5 + noisestep*[[i-1,j-1] for i = noisegen for j = noisegen]
 
+# ======
+# Solver
+env = Gurobi.Env()
+
 # ==========
 # SDDP Model
 m = SDDPModel(
         sense             = :Min,
         stages            = nstages,
         objective_bound   = -(sum(MyData.cost1)*5 + sum(MyData.cost2)*(nstages-1)),
-        solver            = GurobiSolver(OutputFlag=0,TimeLimit=60)
+        solver            = GurobiSolver(env,OutputFlag=0,TimeLimit=60)
        ) do sp, stage
 
     # ========
