@@ -75,12 +75,12 @@ function Qtilde(sp::JuMP.Model, state::AbstractVector{Float64}; relaxation::Bool
         vs = []
         for i in 1:length(ex.noiseprobability)
             SDDP.setnoise!(sp, ex.noises[i])
-            reject_stdout( JuMP.solve(sp, relaxation=relaxation, ignore_solve_hook=true) )
+            JuMP.solve(sp, relaxation=relaxation, ignore_solve_hook=true)
             push!(vs, JuMP.getobjectivevalue(sp))
         end
         return mean(vs)
     else
-        reject_stdout( JuMP.solve(sp, relaxation=relaxation, ignore_solve_hook=true) )
+        JuMP.solve(sp, relaxation=relaxation, ignore_solve_hook=true)
         return JuMP.getobjectivevalue(sp)
     end
 end
