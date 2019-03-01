@@ -40,8 +40,12 @@ end
 
 # ==============
 # Stage problems
-function stage1(sp)
+function stage1(sp, int)
   x = sp[:x]
+  if int
+    @variable(sp, z[1:2], Int)
+    @constraint(sp, z .== x)
+  end
   @stageobjective(sp, -sum(MyData.cost1*x))
 end
 
@@ -53,7 +57,8 @@ function stage2(sp, noise)
   @stageobjective(sp, -sum(MyData.cost2*y))
 end
 
-function caroe_model(;nstages=2, ramp_mode=:None, num_noise=2)
+
+function caroe_model(;nstages=2, ramp_mode=:None, num_noise=2, int=false)
 
 # =====
 # Noise
@@ -75,7 +80,7 @@ m = SDDPModel(
     # State: x
     @state(sp, 0 <= x[1:2] <= 5, x0 == 0)
     if stage == 1
-      stage1(sp)
+      stage1(sp, int)
     else
       stage2(sp, noise)
     end
