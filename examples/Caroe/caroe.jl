@@ -7,19 +7,19 @@ import ASDDiP: prepareALD!, setASDDiPsolver!
 
 # =============
 # \rho policies
-function rho_ramp(niter, Lip, i=1)
+function rho_ramp(niter, Lip)
   Lip * clamp((niter-15)/15, 0.0, 1.0)
 end
 
-function rho_ramp_parallel(niter, Lip, i=1)
+function rho_ramp_parallel(niter, Lip)
   clamp((niter-15)/15, 0.0, Lip)
 end
 
-function rho_ramp_parallel2(niter, Lip, i=1)
+function rho_ramp_parallel2(niter, Lip)
   clamp((niter-15)/15, 0.0, 2*Lip)
 end
 
-function rho_zero(niter, Lip, i=1)
+function rho_zero(niter, Lip)
   0.0
 end
 
