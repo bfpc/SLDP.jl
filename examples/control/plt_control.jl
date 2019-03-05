@@ -1,5 +1,3 @@
-import ASDDiP
-
 #
 # Analytic solution exploiting symmetry
 cost(x::Float64) = abs(x)
@@ -39,6 +37,13 @@ function readlog!(m::SDDP.SDDPModel, filename)
         end
     end
 end
+
+#
+# Graphing code
+#
+import ASDDiP
+import PyPlot
+import LaTeXStrings: @L_str
 
 #
 # Comparative plots
