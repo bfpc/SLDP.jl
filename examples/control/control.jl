@@ -33,14 +33,6 @@ rho_fun = Dict(
  )
 
 
-# =============
-# default noise
-srand(11111)
-A_noise   = 0.4
-num_noise = 5
-noise = randn(num_noise)
-noise = A_noise * [noise; -noise]
-
 function controlmodel(;nstages=8, discount=0.9, ramp_mode=:None, noise=noise)
 
 # ======

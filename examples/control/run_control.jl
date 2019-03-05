@@ -23,15 +23,15 @@ end
 
 #
 # Simulation configs
-names      = ["SB", "ALD simple", "ALD parallel", "ALD parallel2"]
-ramp_modes = [:None, :simple, :parallel, :parallel2]
-iters      = [100, 200, 200, 200]
+# noise & discount; names, ramp_modes & #iter
+include("constants.jl")
+using Const
 
 #
 # Start simulation
-for (name,ramp,niter) in zip(names, ramp_modes, iters)
+for (name,ramp,niter) in zip(run_names, ramp_modes, iters)
   println("Simulating $name")
-  m = controlmodel(nstages=8, discount=0.9, ramp_mode=ramp, noise=noise)
+  m = controlmodel(nstages=8, discount=discount, ramp_mode=ramp, noise=noise)
   controlsolve(m,niter)
 
   SDDP.writecuts!(joinpath("cuts", name*"_benders.cuts"), m)
