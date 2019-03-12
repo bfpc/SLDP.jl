@@ -50,6 +50,11 @@ function readlog!(m::SDDP.SDDPModel, filename)
     end
 end
 
+#
+# Functions to calculate the Future cost functions
+#
+
+# First, Qfrak, the current estimate, from cuts
 function cutvalue(c::ALDCut, t)
     c.v + dot(c.l, t - c.xhat) - c.rho*norm(t - c.xhat, 1)
 end
@@ -84,6 +89,7 @@ function Qfrak(m,t,ms, states::Union{Float64, AbstractVector{Float64}}...; ncuts
     end
 end
 
+# Then, the value function using exact values from next stage
 function setstate!(sp::JuMP.Model, vs::AbstractVector{Float64})
     for (st, v) in zip(SDDP.states(sp), vs)
         lb = JuMP.getlowerbound(st.variable)
@@ -98,6 +104,7 @@ function setstate!(sp::JuMP.Model, vs::AbstractVector{Float64})
     end
 end
 
+# For one sample of the noise
 function Q(m::SDDP.SDDPModel,t::Int,ms::Int, inoise::Int, states::Union{Float64, AbstractVector{Float64}}...; debug::Bool=false, relaxation::Bool=false)
     # Get subproblem and set solver accordingly
     sp = SDDP.getsubproblem(m,t+1,ms)
@@ -138,6 +145,7 @@ function Q(m::SDDP.SDDPModel,t::Int,ms::Int, inoise::Int, states::Union{Float64,
     return ans
 end
 
+# Average over all noises
 function Qtilde(sp::JuMP.Model, state::AbstractVector{Float64}; relaxation::Bool=false)
     setstate!(sp,state)
     if SDDP.hasnoises(sp)
