@@ -98,6 +98,46 @@ function setstate!(sp::JuMP.Model, vs::AbstractVector{Float64})
     end
 end
 
+function Q(m::SDDP.SDDPModel,t::Int,ms::Int, inoise::Int, states::Union{Float64, AbstractVector{Float64}}...; debug::Bool=false, relaxation::Bool=false)
+    # Get subproblem and set solver accordingly
+    sp = SDDP.getsubproblem(m,t+1,ms)
+    solvers = sp.ext[:solvers]
+    if relaxation
+        JuMP.setsolver(sp, solvers.LP)
+    else
+        JuMP.setsolver(sp, solvers.MIP)
+    end
+
+    # Set noise
+    if SDDP.hasnoises(sp)
+        ex = SDDP.ext(sp)
+        SDDP.setnoise!(sp, ex.noises[inoise])
+    else
+        print("  /!\\ WARNING Using Q with a deterministic problem.\n")
+    end
+
+    # Build states vector to loop over
+    if length(states) == 2
+        m = SDDP.mesh(states...)
+    else
+        m = states[1]'
+    end
+
+    # Solve for all states
+    ans = []
+    for i in 1:size(m,2)
+        if debug
+            print(i, ", ")
+        end
+        setstate!(sp,state)
+        push!(ans, JuMP.solve(sp, relaxation=relaxation, ignore_solve_hook=true))
+    end
+    if debug
+        println()
+    end
+    return ans
+end
+
 function Qtilde(sp::JuMP.Model, state::AbstractVector{Float64}; relaxation::Bool=false)
     setstate!(sp,state)
     if SDDP.hasnoises(sp)
