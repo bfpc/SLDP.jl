@@ -1,4 +1,3 @@
-import SDDP, JuMP, PyPlot
 import ASDDiP
 
 include("../examples/Caroe/caroe.jl")
