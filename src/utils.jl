@@ -20,6 +20,36 @@ function reject_stdout(f)
     ret
 end
 
+
+# Auxiliary functions to save and load logs
+function writelogline!(line, file)
+    v = (line.iteration, line.bound, line.lower_statistical_bound, line.upper_statistical_bound,
+         line.timecuts, line.simulations, line.timesimulations, line.timetotal)
+    print(file, v[1])
+    for vi in v[2:end]
+        print(file, ",", vi)
+    end
+    print(file, "\n")
+end
+
+function writelog!(m::SDDP.SDDPModel, filename)
+    open(filename, "w") do file
+        for line in m.log
+            writelogline!(line, file)
+        end
+    end
+end
+
+function readlog!(m::SDDP.SDDPModel, filename)
+    open(filename, "r") do file
+        for li in readlines(file)
+            ls = split(li, ",")
+            vals = [parse(fieldtype(SDDP.SolutionLog,fn), String(v)) for (v,fn) in zip(ls,fieldnames(SDDP.SolutionLog))]
+            push!(m.log, SDDP.SolutionLog(vals...))
+        end
+    end
+end
+
 function cutvalue(c::ALDCut, t)
     c.v + dot(c.l, t - c.xhat) - c.rho*norm(t - c.xhat, 1)
 end
