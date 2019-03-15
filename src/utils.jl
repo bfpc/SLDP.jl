@@ -136,8 +136,9 @@ function Q(m::SDDP.SDDPModel,t::Int,ms::Int, inoise::Int, states::Union{Float64,
         if debug
             print(i, ", ")
         end
-        setstate!(sp,state)
-        push!(ans, JuMP.solve(sp, relaxation=relaxation, ignore_solve_hook=true))
+        setstate!(sp,m[:,i])
+        JuMP.solve(sp, relaxation=relaxation, ignore_solve_hook=true)
+        push!(ans, JuMP.getobjectivevalue(sp))
     end
     if debug
         println()
