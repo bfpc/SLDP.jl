@@ -8,5 +8,6 @@ import TimerOutputs: @timeit
 include("typedefs.jl")
 include("solver.jl")
 include("state.jl")
+include("valuefunction.jl")
 
 include("utils.jl")

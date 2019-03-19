@@ -9,7 +9,6 @@ type LinearProgramData
     obj::QuadExpr                               # objective
     constraints::Vector{<:ConstraintRef}        # constraints being relaxed
     senses::Vector{Symbol}                      # we will cache the sense of constraints
-    slacks::Vector{AffExpr}                     # also cache Ax-b
     old_bound::Vector{Float64}                  # cache before relaxing constraints
 end
 
@@ -27,7 +26,6 @@ Creates a `LinearProgramData` object for calling `lagrangiansolve!`.
 function LinearProgramData(obj::QuadExpr, constraints::Vector{<:ConstraintRef})
     LinearProgramData(obj, constraints,
         sense.(constraints),
-        getslack.(constraints),
         zeros(Float64, length(constraints)),
     )
 end
