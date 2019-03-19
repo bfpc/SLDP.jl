@@ -28,28 +28,41 @@ struct ALDCut
   rho :: Float64
 end
 
+# Struct for ALD parameters
+# Change (slowly) over iterations
+mutable struct ALDparams
+  Lip     :: Float64
+  rho_line:: Tuple{Float64,Float64}
+  tents   :: Bool
+  maxcuts :: Int64
+  dropcut :: Int64
+  # savecut :: Union{Void,String}
+end
+
 # Struct to track ALD
 struct ALDExtension
   # The extended state variable information needed for ALD cuts
   states :: Vector{ALDState}
-  Lip    :: Float64
+  params :: ALDparams
 
   # Dynamic information (reset at each backwards pass)
   # xin information (lb/ub might depend on Markov state, current value always),
+  # current \rho
   xin_lb :: Vector{Float64}
   xin_v  :: Vector{Float64}
   xin_ub :: Vector{Float64}
+  rho    :: Vector{Float64}
   # (v,l,rho) triple,  push!-ed for each noise
   vstore :: Vector{Float64}
   lstore :: Vector{Vector{Float64}}
   rhostore :: Vector{Float64}
 
-  # "Evolution information": current \rho, list of ALD cuts added
-  rho    :: Vector{Float64}
+  # "Evolution information": list of ALD cuts added
   cuts   :: Vector{ALDCut}
 end
 
 aldstates(m) = m.ext[:ALD].states
+aldparams(m) = m.ext[:ALD].params
 aldcuts(m)   = m.ext[:ALD].cuts
 
 lagrangian(m) = m.ext[:Lagrangian]

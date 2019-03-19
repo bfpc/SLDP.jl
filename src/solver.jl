@@ -1,16 +1,3 @@
-function default_rho_policy(niter :: Int, t :: Int, i=1 :: Int)
-  return clamp((niter-10)/10, 0, 10)
-end
-
-function prepareALD!(m :: SDDP.SDDPModel, Lip::Function, rho_policy=default_rho_policy)
-  for stage in SDDP.stages(m)
-    sp = stage.subproblems[1]
-    stage.ext[:ALDbounds] = [[st.lb, st.ub] for st in aldstates(sp)]
-    stage.ext[:Lip]  = Lip(stage.t)
-    stage.ext[:rhos] = rho_policy
-  end
-end
-
 function SDDP.postsolve!(:: Type{SDDP.ForwardPass}, m :: SDDP.Model, sp :: JuMP.Model)
   t = SDDP.ext(sp).stage
   stage = SDDP.getstage(m, t)
@@ -88,25 +75,25 @@ function get_info_prevstage!(sp::JuMP.Model, m::SDDP.SDDPModel)
   end
 end
 
-function make_cut(m, t, x, rho)
-    settings = SDDP.Settings()
-    close(settings.cut_output_file)
-    prev_state = SDDP.getstage(m,t-1).state
-    SDDP.padvec!(prev_state, length(x))
-    for (i,xi) in enumerate(x)
-        prev_state[i] = xi
-    end
-    cut_it(m, t, rho, settings)
-end
-
-function cut_it(m::SDDP.SDDPModel, t::Int, rho::Real, settings::SDDP.Settings)
+function cut_it(m::SDDP.SDDPModel, t::Int, settings::SDDP.Settings; rho=nothing::Union{Void,Real})
     # solve all stage t problems
-    SDDP.reset!(m.storage)
+    niter = length(m.log)
     for sp in SDDP.subproblems(m, t)
+        # Set xin
         SDDP.setstates!(m, sp)
+
+        # Set rho for ALD
+        if rho == nothing
+          lip = aldparams(sp).Lip
+          a,b = aldparams(sp).rho_line
+          rho = clamp(a*niter + b, 0.0, lip)
+        end
         sp.ext[:ALD].rho[1] = rho
-        # Hack, should be done in forward pass
+
+        # Update ALD equations for |z - xin|
         get_info_prevstage!(sp, m)
+
+        # Solve all noises, and store each cut information
         empty!(sp.ext[:ALD].vstore)
         empty!(sp.ext[:ALD].lstore)
         empty!(sp.ext[:ALD].rhostore)
@@ -122,16 +109,13 @@ function cut_it(m::SDDP.SDDPModel, t::Int, rho::Real, settings::SDDP.Settings)
 end
 
 # Modify SDDP.backwardpass! because we must empty! all vstore/lstore for ALD,
-# over _all_ subproblems in current stage (not only the current stage)
+# over _all_ subproblems in current stage (not only the current markov state)
 import SDDP: backwardpass!
 function backwardpass!(m::SDDP.SDDPModel, settings::SDDP.Settings)
-    niter = length(m.log)
     # walk backward through the stages
     for t in SDDP.nstages(m):-1:2
-        stage = SDDP.getstage(m,t)
-        Lip = stage.ext[:Lip]
-        rho = stage.ext[:rhos](niter, Lip)
-        cut_it(m, t, rho, settings)
+        SDDP.reset!(m.storage)
+        cut_it(m, t, settings)
     end
     SDDP.reset!(m.storage)
     for sp in SDDP.subproblems(m, 1)
@@ -140,23 +124,29 @@ function backwardpass!(m::SDDP.SDDPModel, settings::SDDP.Settings)
     return dot(m.storage.objective, m.storage.probability)
 end
 
+function getpi_SB(sp::JuMP.Model)
+  # If using tents, just return zeroes
+  if aldparams(sp).tents
+    return zeros(len(SDDP.states(sp)))
+  else
+    # π via relaxation
+    lpsolver = sp.ext[:solvers].LP
+    JuMP.setsolver(sp, lpsolver)
+    @assert JuMP.solve(sp, ignore_solve_hook=true, relaxation=true) == :Optimal
+    return SDDP.getdual.(SDDP.states(sp))
+  end
+end
+
 # The solvehook
-function ASDDiPsolve!(sp::JuMP.Model; require_duals::Bool=false, kwargs...)
+function ALDsolve!(sp::JuMP.Model; require_duals::Bool=false, kwargs...)
     solvers = sp.ext[:solvers]
     if require_duals && SDDP.ext(sp).stage > 1
         # Update the objective we cache in case the objective has noises
         l = lagrangian(sp)
         l.obj = JuMP.getobjective(sp)
 
-        # Strengthened Augmented Benders cut:
-        # Solve relaxation, then lift as possible.
-
-        # Get the LP duals
-        JuMP.setsolver(sp, solvers.LP)
-        @assert JuMP.solve(sp, ignore_solve_hook=true, relaxation=true) == :Optimal
-        π  = SDDP.getdual.(SDDP.states(sp))
-        # Update slacks because RHSs change each iteration
-        # l.slacks = getslack.(l.constraints)
+        # Strengthened Augmented Benders cut: lift as much as possible given π and rho
+        π = getpi_SB(sp)
         # Relax bounds to formulate Lagrangian
         Lagrangian.relaxandcache!(l, sp)
         # Change the MIP objective
@@ -173,6 +163,7 @@ function ASDDiPsolve!(sp::JuMP.Model; require_duals::Bool=false, kwargs...)
 
         # Solve original problem again to have correct level for automatic SDDP Benders cut
         if sp.ext[:ALD].rho[1] > 0
+          # Maybe insert here a SB cut, not just Benders cut
           JuMP.setsolver(sp, solvers.LP)
           JuMP.solve(sp, ignore_solve_hook=true, relaxation=true)
         end
@@ -265,32 +256,3 @@ function ASDDiPsolve_optrho!(sp::JuMP.Model; require_duals::Bool=false, kwargs..
     status
 end
 
-"""
-    setSDDiPsolver!(sp::JuMP.Model; method=Subgradient(0.0), pattern=Pattern(), MIPsolver=sp.solver, LPsolver=MIPsolver)
-
-Sets a JuMP solvehook for integer SDDP to stage problem `sp` that will call a
-a Lagrangian solver of type `method.` Argument `pattern` can be used to specify
-a pattern of different cut types.
-
-You should specify an LP/MIP solver if you are using different cut types in a cut
-pattern, and you are not using a solver that can solve both MIPs and LPs.
-"""
-function setASDDiPsolver!(sp::JuMP.Model; MIPsolver=sp.solver, LPsolver=MIPsolver)
-    n = length(SDDP.states(sp))
-    sp.ext[:ALD] = ALDExtension([],10,zeros(n),zeros(n),zeros(n),[],[],[],[1.5],[])
-
-    constraints = SDDP.LinearConstraint[]
-    for s in SDDP.states(sp)
-        # xinₜ = xoutₜ₋₁ is being relaxed
-        push!(constraints, s.constraint)
-        s0 = sp.linconstr[s.constraint.idx].terms.vars[1]
-        ald_statevariable!(sp, s0, s.variable, s.constraint)
-    end
-
-
-    sp.ext[:Lagrangian] = Lagrangian.LinearProgramData(JuMP.QuadExpr(),         # objective
-                                           constraints)         # relaxed constraints
-    sp.ext[:solvers] = MixedSolvers(LPsolver, MIPsolver)
-
-    JuMP.setsolvehook(sp, ASDDiPsolve!)
-end

@@ -9,5 +9,6 @@ include("typedefs.jl")
 include("solver.jl")
 include("state.jl")
 include("valuefunction.jl")
+include("setup.jl")
 
 include("utils.jl")

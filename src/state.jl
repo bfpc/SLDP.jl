@@ -11,7 +11,7 @@
 
 bound_error(x) =  error("You must provide both upper and lower bounds on $(x).")
 
-# This is called by setASDDiPsolver!
+# This is called by setALDsolver!
 function ald_statevariable!(m::JuMP.Model, xin::JuMP.Variable, xout::JuMP.Variable,
                             cc)
     xin0 = JuMP.getvalue(xin)

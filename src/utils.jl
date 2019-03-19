@@ -189,3 +189,14 @@ function Qtilde(m::SDDP.SDDPModel,t::Int,ms::Int, states::Union{Float64, Abstrac
     end
     return ans
 end
+
+function make_cut(m, t, x, rho)
+    settings = SDDP.Settings()
+    close(settings.cut_output_file)
+    prev_state = SDDP.getstage(m,t-1).state
+    SDDP.padvec!(prev_state, length(x))
+    for (i,xi) in enumerate(x)
+        prev_state[i] = xi
+    end
+    cut_it(m, t, settings, rho=rho)
+end
