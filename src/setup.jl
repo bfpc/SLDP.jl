@@ -1,18 +1,19 @@
-function prepareALD!(m :: SDDP.SDDPModel, rho_line=(0.1,-1.0)::Tuple{Float64,Float64})
+function prepareALD!(m :: SDDP.SDDPModel)
   for stage in SDDP.stages(m)
     sp = stage.subproblems[1]
     stage.ext[:ALDbounds] = [[st.lb, st.ub] for st in aldstates(sp)]
-    for sp in stage.subproblems
-        aldparams(sp).rho_line = rho_line
   end
 end
 
 
 """
-    setALDsolver!(sp::JuMP.Model, lip::Float64; maxcuts=0, drop=0, MIPsolver=sp.solver, LPsolver=MIPsolver)
+    setALDsolver!(sp::JuMP.Model, lip::Float64, rho_line::Tuple{Float64,Float64};
+                  tents::Bool=false, maxcuts=0, drop=0, MIPsolver=sp.solver, LPsolver=MIPsolver)
 
 Sets a JuMP solvehook for integer SDDP to stage problem `sp` that will use ALD cuts,
 with maximum lipschitz constant `lip`.
+The value of the lagrangian augmentation parameter rho is given by a*niter + b,
+where (a,b) = `rho_line`.
 
 The solver will store at most `maxcuts` ALD cuts (0 = infinite),
 and will remove ALD cuts according to `drop`.
@@ -20,9 +21,10 @@ and will remove ALD cuts according to `drop`.
 You should specify an LP/MIP solver if you are using different cut types in a cut
 pattern, and you are not using a solver that can solve both MIPs and LPs.
 """
-function setALDsolver!(sp::JuMP.Model, lip::Float64; tents::Bool=false, maxcuts=0, drop=0, MIPsolver=sp.solver, LPsolver=MIPsolver)
+function setALDsolver!(sp::JuMP.Model, lip::Float64, rho_line::Tuple{Float64,Float64};
+                       tents::Bool=false, maxcuts=0, drop=0, MIPsolver=sp.solver, LPsolver=MIPsolver)
     n = length(SDDP.states(sp))
-    params = ALDparams(lip,(0,0),tents,maxcuts,drop)
+    params = ALDparams(lip,rho_line,tents,maxcuts,drop)
     sp.ext[:ALD] = ALDExtension([],params,
                                 zeros(n),zeros(n),zeros(n),[0.0],
                                 [],[],[],
