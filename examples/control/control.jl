@@ -55,7 +55,12 @@ m = SDDPModel(
     # ========
     # Dynamics
     @variable(sp, 0 <= move <= 1, Int)  # Control: left or right
-    @rhsnoise(sp, drift=noise, x == x0 + drift + 2*move - 1)
+    # Correct to not have first stage noise
+    if stage == 1
+      @constraint(sp, x == x0 + 2*move - 1)
+    else
+      @rhsnoise(sp, drift=noise, x == x0 + drift + 2*move - 1)
+    end
 
     # ==========================================
     # Cost: absolute difference from equilibrium
