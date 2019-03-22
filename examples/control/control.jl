@@ -2,25 +2,25 @@ import SDDP: SDDPModel, @state, @rhsnoise, @stageobjective
 import JuMP: @variable, @constraint
 import Gurobi: GurobiSolver
 
-import ASDDiP: prepareALD!, setASDDiPsolver!
+import ASDDiP: prepareALD!, setALDsolver!
 
 
 # =============
 # \rho policies
-function rho_ramp(niter, Lip)
-  Lip * clamp((niter-15)/15, 0.0, 1.0)
+function rho_ramp(Lip::Float64)
+  Lip/15, -Lip
 end
 
-function rho_ramp_parallel(niter, Lip)
-  clamp((niter-15)/15, 0.0, Lip)
+function rho_ramp_parallel(Lip::Float64)
+  1/15, -1.
 end
 
-function rho_ramp_parallel2(niter, Lip)
-  clamp((niter-15)/15, 0.0, 2*Lip)
+function rho_ramp_parallel2(Lip::Float64)
+  1/15, -1.
 end
 
-function rho_zero(niter, Lip)
-  0.0
+function rho_zero(Lip::Float64)
+  0.,0.
 end
 
 # And dictionnary
@@ -34,6 +34,23 @@ rho_fun = Dict(
 
 
 function controlmodel(;nstages=8, discount=0.9, ramp_mode=:None, noise=noise)
+
+# ==================
+# Lipschitz constant
+function Lip(t)
+    l = (1.0 - discount^(nstages+1-t))/(1 - discount)*discount^(t-1)
+    if ramp_mode == :parallel2
+      return 2*l
+    else
+      return l
+    end
+end
+
+rho_line = try rho_fun[ramp_mode]
+catch
+  warn("Invalid ramp mode $(ramp_mode).  Not using ALD cuts, only Strenghtened Benders.")
+  rho_zero
+end
 
 # ======
 # Solver
@@ -71,14 +88,10 @@ m = SDDPModel(
 
     # =================================
     # The solver hook for backwards ALD
-    setASDDiPsolver!(sp)
+    lip = Lip(stage)
+    setALDsolver!(sp, lip, rho_line(lip))
 end
 
-# ==================
-# Lipschitz constant
-function Lip(t)
-    return (1.0 - discount^(nstages+1-t))/(1 - discount)*discount^(t-1)
-end
 
 # =======
 # Prepare
@@ -90,12 +103,7 @@ if ramp_mode == :opt_rho
     end
   end
 else
-  try
-    prepareALD!(m, Lip, rho_fun[ramp_mode])
-  catch
-    warn("Invalid ramp mode $(ramp_mode).  Not using ALD cuts, only Strenghtened Benders.")
-    prepareALD!(m, Lip, rho_zero)
-  end
+  prepareALD!(m)
 end
 
 return m
