@@ -102,6 +102,35 @@ function load_aldcuts!(m::SDDP.SDDPModel{SDDP.DefaultValueFunction{C}}, filename
     end
 end
 
+function load_aldcuts!(m::SDDP.SDDPModel{SDDP.DefaultValueFunction{C}}, cutlist::Vector{Vector{Vector{ALDCut}}}; lastn=nothing::Union{Void,Int64}) where C
+    for (stage,stagecuts) in enumerate(cutlist)
+        for (ms,spcuts) in enumerate(stagecuts)
+            sp = SDDP.getsubproblem(m, stage, ms)
+            selectedcuts = ALDCut[]
+            if lastn == nothing || length(spcuts) < lastn
+                selectedcuts = spcuts
+            else
+                selectedcuts = spcuts[end-lastn:end]
+            end
+            for cut in selectedcuts
+                add_aldcut!(sp, cut)
+            end
+        end
+    end
+end
+
+function get_aldcuts!(m::SDDP.SDDPModel{SDDP.DefaultValueFunction{C}}) where C
+    cutlist = Vector{Vector{ASDDiP.ALDCut}}[]
+    for stage in m.stages
+        stagecuts = Vector{ASDDiP.ALDCut}[]
+        for sp in stage.subproblems
+            push!(stagecuts, ASDDiP.aldcuts(sp))
+        end
+        push!(cutlist, stagecuts)
+    end
+    return cutlist
+end
+
 function write_aldcut!(io::IO, stage::Int, markovstate::Int, cut::ALDCut)
     write(io, string(stage), ",", string(markovstate))
     for xi in cut.xhat
