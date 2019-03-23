@@ -51,6 +51,15 @@ function SDDP.JuMPsolve(::Type{SDDP.BackwardPass}, m::SDDP.SDDPModel, sp::JuMP.M
 end
 
 
+function set_sb_objective!(sp::JuMP.Model, π)
+  aff_expr = 0
+  xhat = sp.ext[:ALD].xin_v
+  for (st,xi,li) in zip(aldstates(sp),xhat, π)
+    aff_expr += li * (xi - st.xin)
+  end
+  sp.obj += aff_expr
+end
+
 function set_ald_objective!(sp::JuMP.Model, π)
   aff_expr = 0
   xhat = sp.ext[:ALD].xin_v
@@ -157,16 +166,22 @@ function ALDsolve!(sp::JuMP.Model; require_duals::Bool=false, kwargs...)
         push!(sp.ext[:ALD].vstore, JuMP.getobjectivevalue(sp))
         push!(sp.ext[:ALD].lstore, π)
         push!(sp.ext[:ALD].rhostore, sp.ext[:ALD].rho[1])
+
+        # Solve problem again to have correct RHS in the SDDP linear cut (Benders / Strenghtened Benders)
+        if sp.ext[:ALD].rho[1] > 0
+          sp.obj = l.obj
+          if aldparams(sp).useSB
+            set_sb_objective!(sp, π)
+            JuMP.solve(sp, ignore_solve_hook=true)
+          else
+            JuMP.setsolver(sp, solvers.LP)
+            JuMP.solve(sp, ignore_solve_hook=true, relaxation=true)
+          end
+        end
+
         # Undo changes
         sp.obj = l.obj
         Lagrangian.recover!(l, sp, π)
-
-        # Solve original problem again to have correct level for automatic SDDP Benders cut
-        if sp.ext[:ALD].rho[1] > 0
-          # Maybe insert here a SB cut, not just Benders cut
-          JuMP.setsolver(sp, solvers.LP)
-          JuMP.solve(sp, ignore_solve_hook=true, relaxation=true)
-        end
     else
         # We are in the forward pass, or we are in stage 1
         JuMP.setsolver(sp, solvers.MIP)

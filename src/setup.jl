@@ -22,9 +22,10 @@ You should specify an LP/MIP solver if you are using different cut types in a cu
 pattern, and you are not using a solver that can solve both MIPs and LPs.
 """
 function setALDsolver!(sp::JuMP.Model, lip::Float64, rho_line::Tuple{Float64,Float64};
-                       tents::Bool=false, maxcuts=0, drop=0, MIPsolver=sp.solver, LPsolver=MIPsolver)
+                       doSB::Bool=true, tents::Bool=false, maxcuts=0, drop=0,
+                       MIPsolver=sp.solver, LPsolver=MIPsolver)
     n = length(SDDP.states(sp))
-    params = ALDparams(lip,rho_line,tents,maxcuts,drop)
+    params = ALDparams(lip,rho_line,doSB,tents,maxcuts,drop)
     sp.ext[:ALD] = ALDExtension([],params,
                                 zeros(n),zeros(n),zeros(n),[0.0],
                                 [],[],[],

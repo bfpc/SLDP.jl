@@ -33,6 +33,7 @@ end
 mutable struct ALDparams
   Lip     :: Float64
   rho_line:: Tuple{Float64,Float64}
+  useSB   :: Bool
   tents   :: Bool
   maxcuts :: Int64
   dropcut :: Int64
