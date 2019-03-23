@@ -94,8 +94,12 @@ function cut_it(m::SDDP.SDDPModel, t::Int, settings::SDDP.Settings; rho=nothing:
         # Set rho for ALD
         if rho == nothing
           lip = aldparams(sp).Lip
-          a,b = aldparams(sp).rho_line
-          rho = clamp(a*niter + b, 0.0, lip)
+          if aldparams(sp).tents
+            rho = lip
+          else
+            a,b = aldparams(sp).rho_line
+            rho = clamp(a*niter + b, 0.0, lip)
+          end
         end
         sp.ext[:ALD].rho[1] = rho
 
