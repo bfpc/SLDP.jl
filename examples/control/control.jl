@@ -33,7 +33,8 @@ rho_fun = Dict(
  )
 
 
-function controlmodel(;nstages=8, discount=0.9, ramp_mode=:None, noise=noise)
+function controlmodel(;nstages=8, discount=0.9, ramp_mode=:None, noise=noise,
+                      doSB=true, tents=false)
 
 # ==================
 # Lipschitz constant
@@ -89,7 +90,7 @@ m = SDDPModel(
     # =================================
     # The solver hook for backwards ALD
     lip = Lip(stage)
-    setALDsolver!(sp, lip, rho_line(lip))
+    setALDsolver!(sp, lip, rho_line(lip); doSB=doSB, tents=tents)
 end
 
 
