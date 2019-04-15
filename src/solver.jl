@@ -29,19 +29,11 @@ end
 
 # Overload how stage problems are solved in the backward pass
 # Copied from SDDiP/SDDP
-function SDDP.JuMPsolve(::Type{SDDP.BackwardPass}, m::SDDP.SDDPModel, sp::JuMP.Model)
-    direction = SDDP.BackwardPass
+function SDDP.JuMPsolve(direction::Type{SDDP.BackwardPass}, m::SDDP.SDDPModel, sp::JuMP.Model)
     SDDP.presolve!(direction, m, sp)
 
-    TT = STDOUT
-    _rd,_wr = redirect_stdout()
-    status = try
-      @timeit SDDP.TIMER "Backwards jumpsolve w/ duals" begin
-        SDDP.jumpsolve(sp, require_duals=true)
-      end
-    finally
-      redirect_stdout(TT)
-      close(_rd); close(_wr)
+    @timeit SDDP.TIMER "Backwards jumpsolve w/ duals" begin
+      status = SDDP.jumpsolve(sp, require_duals=true)
     end
 
     if status != :Optimal
