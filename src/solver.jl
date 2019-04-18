@@ -132,7 +132,7 @@ end
 function getpi_SB(sp::JuMP.Model)
   # If using tents, just return zeroes
   if aldparams(sp).tents
-    return zeros(len(SDDP.states(sp)))
+    return zeros(length(SDDP.states(sp)))
   else
     # π via relaxation
     lpsolver = sp.ext[:solvers].LP
