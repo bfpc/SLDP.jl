@@ -1,3 +1,4 @@
+# Save the upper and lower bounds of the outgoing variable to be used in the next stage
 function SDDP.postsolve!(:: Type{SDDP.ForwardPass}, m :: SDDP.Model, sp :: JuMP.Model)
   t = SDDP.ext(sp).stage
   stage = SDDP.getstage(m, t)
