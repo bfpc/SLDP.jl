@@ -119,17 +119,8 @@ function load_aldcuts!(m::SDDP.SDDPModel{SDDP.DefaultValueFunction{C}}, cutlist:
     end
 end
 
-function get_aldcuts!(m::SDDP.SDDPModel{SDDP.DefaultValueFunction{C}}) where C
-    cutlist = Vector{Vector{ASDDiP.ALDCut}}[]
-    for stage in m.stages
-        stagecuts = Vector{ASDDiP.ALDCut}[]
-        for sp in stage.subproblems
-            push!(stagecuts, ASDDiP.aldcuts(sp))
-        end
-        push!(cutlist, stagecuts)
-    end
-    return cutlist
-end
+aldcuts(stage::SDDP.Stage) = aldcuts.(stage.subproblems)
+aldcuts(m::SDDP.SDDPModel) = aldcuts.(m.stages)
 
 function write_aldcut!(io::IO, stage::Int, markovstate::Int, cut::ALDCut)
     write(io, string(stage), ",", string(markovstate))
