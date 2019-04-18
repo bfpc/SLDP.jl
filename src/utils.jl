@@ -211,5 +211,6 @@ function make_cut(m, t, x, rho)
     for (i,xi) in enumerate(x)
         prev_state[i] = xi
     end
+    SDDP.reset!(m.storage)
     cut_it(m, t, settings, rho=rho)
 end
