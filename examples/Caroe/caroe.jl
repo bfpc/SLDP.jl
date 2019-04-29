@@ -1,26 +1,26 @@
 import JuMP: @variable, @constraint
 import SDDP: SDDPModel, @state, @rhsnoise, @stageobjective
-import ASDDiP: prepareALD!, setASDDiPsolver!
+import ASDDiP: prepareALD!, setALDsolver!
 
 import Gurobi: GurobiSolver
 
 
 # =============
 # \rho policies
-function rho_ramp(niter, Lip)
-  Lip * clamp((niter-15)/15, 0.0, 1.0)
+function rho_ramp(Lip::Float64)
+  Lip/15, -Lip
 end
 
-function rho_ramp_parallel(niter, Lip)
-  clamp((niter-15)/15, 0.0, Lip)
+function rho_ramp_parallel(Lip::Float64)
+  1/15, -1.
 end
 
-function rho_ramp_parallel2(niter, Lip)
-  clamp((niter-15)/15, 0.0, 2*Lip)
+function rho_ramp_parallel2(Lip::Float64)
+  1/15, -1.
 end
 
-function rho_zero(niter, Lip)
-  0.0
+function rho_zero(Lip::Float64)
+  0.,0.
 end
 
 # And dictionnary
@@ -58,7 +58,8 @@ function stage2(sp, noise)
 end
 
 
-function caroe_model(;nstages=2, ramp_mode=:None, num_noise=2, int=false)
+function caroe_model(;nstages=2, ramp_mode=:None, num_noise=2, int=false,
+                      doSB=true, tents=false)
 
 # =====
 # Noise
@@ -66,6 +67,19 @@ function caroe_model(;nstages=2, ramp_mode=:None, num_noise=2, int=false)
 noisestep = 10/(num_noise - 1)
 noisegen = 1:num_noise
 noise = 5 + noisestep*[[i-1,j-1] for i = noisegen for j = noisegen]
+
+# ==================
+# Lipschitz constant
+function Lip(t)
+    return 30.
+end
+
+rho_line = try rho_fun[ramp_mode]
+catch
+  warn("Invalid ramp mode $(ramp_mode).  Not using ALD cuts, only Strenghtened Benders.")
+  rho_zero
+end
+
 
 # ======
 # Solver
@@ -91,13 +105,8 @@ m = SDDPModel(
 
     # =================================
     # The solver hook for backwards ALD
-    setASDDiPsolver!(sp)
-end
-
-# ==================
-# Lipschitz constant
-function Lip(t)
-    return 30
+    lip = Lip(stage)
+    setALDsolver!(sp, lip, rho_line(lip); doSB=doSB, tents=tents)
 end
 
 # =======
@@ -110,19 +119,14 @@ if ramp_mode == :opt_rho
     end
   end
 else
-  try
-    prepareALD!(m, Lip, rho_fun[ramp_mode])
-  catch
-  warn("Invalid ramp mode $(ramp_mode).  Not using ALD cuts, only Strenghtened Benders.")
-    prepareALD!(m, Lip, rho_zero)
-  end
+  prepareALD!(m)
 end
 
 return m
 end
 
 sim = SDDP.MonteCarloSimulation(
-     frequency = 10,
+     frequency = 50,
      min  = 100, step = 50, max  = 200,
      terminate = false
     )
