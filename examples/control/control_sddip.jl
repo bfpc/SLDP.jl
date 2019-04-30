@@ -5,7 +5,7 @@ import SDDiP: @binarystate, setSDDiPsolver!, Pattern, SubgradientMethod, LevelMe
 import Gurobi: GurobiSolver
 
 
-function controlmodel(;nstages=8, discount=0.9, noise=noise, eps=0.1, lagtol=1e-4)
+function controlmodel(;nstages=8, discount=0.9, noise=noise, eps=0.1, pattern=(0,1,1), lagtol=1e-4)
 
 env = Gurobi.Env()
 
@@ -41,7 +41,7 @@ m = SDDPModel(
 
     # =================================
     # The solver hook for backwards SDDiP
-    pat  = Pattern(benders=0, strengthened_benders=1, lagrangian=1)
+    pat  = Pattern(benders=pattern[1], strengthened_benders=pattern[2], lagrangian=pattern[3])
     meth = LevelMethod(initialbound=0.0, tol=SDDiP.Unit(lagtol), quadsolver=GurobiSolver(env,OutputFlag=0), maxit=1_000)
     setSDDiPsolver!(sp, method=meth, pattern=pat)
 end
