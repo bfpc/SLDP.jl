@@ -33,7 +33,7 @@ rho_fun = Dict(
  )
 
 
-function controlmodel(;nstages=8, discount=0.9, ramp_mode=:None, noise=noise,
+function controlmodel(;nstages=8, discount=0.9, ramp_mode=:None, noise=noise, shift=nothing,
                       doSB=true, tents=false)
 
 # ==================
@@ -77,7 +77,8 @@ m = SDDPModel(
     if stage == 1
       @constraint(sp, x == x0 + 2*move - 1)
     else
-      @rhsnoise(sp, drift=noise, x == x0 + drift + 2*move - 1)
+      delta = (shift == nothing ? 0.0 : shift[stage])
+      @rhsnoise(sp, drift=noise+delta, x == x0 + drift + 2*move - 1)
     end
 
     # ==========================================

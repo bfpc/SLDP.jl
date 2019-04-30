@@ -6,6 +6,7 @@ A_noise   = 0.4
 num_noise = 5
 noise = randn(num_noise)
 noise = A_noise * [noise; -noise]
+shift = [0.0, 3.0, 2.0, 0.0, 0.0, -2.0, -3.0, 0.0]
 
 # =======
 # discount
