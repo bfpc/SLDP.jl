@@ -30,10 +30,9 @@ using Const
 niter = 100
 for eps in [0.1, 0.01]
   for lagtol in [1e-2, 1e-4]
-    name = "SDDiP_" * string(eps) * "_" * string(lagtol)
-    println("Simulating SDDiP, eps = $eps, lagrangian tolerance = $lagtol")
-    epsnoise = eps*round.(noise/eps)
-    m = controlmodel(nstages=8, discount=discount, noise=epsnoise,
+    name = "SDDiP_Lip" * string(eps) * "_" * string(lagtol)
+    println("Simulating penalized SDDiP, eps = $eps, lagrangian tolerance = $lagtol")
+    m = controlmodel(nstages=8, discount=discount, noise=noise,
                      eps=eps, lagtol=lagtol)
     controlsolve(m,niter)
 

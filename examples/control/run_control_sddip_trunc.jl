@@ -30,8 +30,8 @@ using Const
 niter = 100
 for eps in [0.1, 0.01]
   for lagtol in [1e-2, 1e-4]
-    name = "SDDiP_" * string(eps) * "_" * string(lagtol)
-    println("Simulating SDDiP, eps = $eps, lagrangian tolerance = $lagtol")
+    name = "SDDiP_trunc_" * string(eps) * "_" * string(lagtol)
+    println("Simulating truncated SDDiP, eps = $eps, lagrangian tolerance = $lagtol")
     epsnoise = eps*round.(noise/eps)
     m = controlmodel(nstages=8, discount=discount, noise=epsnoise,
                      eps=eps, lagtol=lagtol)
