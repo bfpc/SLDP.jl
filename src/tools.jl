@@ -35,6 +35,35 @@ end
 # Functions to calculate the Future cost functions
 #
 
+# Convert to binary for SDDiP
+function binarize(eps, ub, states)
+  ans = []
+  n = ceil(log2(1 + ub/eps))
+  cur = floor.(states/eps)
+  for i = 1:n
+    a = cur .% 2
+    push!(ans, a)
+    cur = (cur - a)/2
+  end
+  return ans
+end
+
+function Qfrak_sddip(m,t,ms, eps::Float64, ub::Float64, states::Union{Float64, AbstractVector{Float64}}; ncuts=nothing)
+    sp = SDDP.getsubproblem(m,t,ms)
+    vf = SDDP.valueoracle(sp)
+    cuts = SDDP.valid_cuts(SDDP.cutoracle(vf))
+    if ncuts != nothing
+      cuts = cuts[1:ncuts]
+    end
+    A, b = SDDP.getAb(cuts)
+
+    binstates = binarize(eps, ub, states)
+    @assert length(binstates, 1) == size(A, 2)
+
+    y = b + A * binstates
+    return maximum(hcat(y...), 2)
+end
+
 # The value function using exact values from next stage
 function setstate!(sp::JuMP.Model, vs::AbstractVector{Float64})
     for (st, v) in zip(SDDP.states(sp), vs)
