@@ -8,15 +8,15 @@ import Gurobi: GurobiSolver
 # =============
 # \rho policies
 function rho_ramp(Lip::Float64)
-  Lip/15, -Lip
+  Lip/15, 0.
 end
 
 function rho_ramp_parallel(Lip::Float64)
-  1/15, -1.
+  1/15, 0.
 end
 
 function rho_ramp_parallel2(Lip::Float64)
-  1/15, -1.
+  1/15, 0.
 end
 
 function rho_zero(Lip::Float64)
