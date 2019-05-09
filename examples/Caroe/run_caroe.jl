@@ -1,10 +1,9 @@
 include("caroe.jl")
 
-#
 # Simulation configs
-# names, ramp_modes & #iter
-include("constants.jl")
-using Const
+run_names  = ["SB", "ALD parallel"]
+ramp_modes = [:None, :parallel]
+iters      = [100, 200]
 
 #
 # Start simulation
