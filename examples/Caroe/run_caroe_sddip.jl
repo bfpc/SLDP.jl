@@ -19,6 +19,10 @@ function writelog!(m::SDDP.SDDPModel, filename)
     end
 end
 
+# Warm-up
+m = caroe_model(num_noise=2, int=false, eps=0.1, lagtol=1e-4)
+caroe_solve(m,10)
+
 # Start simulation
 niter = 100
 for noise in [2,3,6,11,21]
