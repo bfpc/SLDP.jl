@@ -226,6 +226,7 @@ function ASDDiPsolve_optrho!(sp::JuMP.Model; require_duals::Bool=false, kwargs..
 
         # Get optimal MIP value
         println("Solving stage $(SDDP.ext(sp).stage) backwards")
+        JuMP.setsolver(sp, solvers.MIP)
         @assert JuMP.solve(sp, ignore_solve_hook=true) == :Optimal
         mipvalue = JuMP.getobjectivevalue(sp)
         #println("Got MIP value = $mipvalue")
@@ -237,8 +238,12 @@ function ASDDiPsolve_optrho!(sp::JuMP.Model; require_duals::Bool=false, kwargs..
         #println("Got LP value = $curvalue")
         π  = SDDP.getdual.(SDDP.states(sp))
 
+        # Add valuetol as parameter to use here and in bissection
         if curvalue == mipvalue
           optrho = 0
+          push!(sp.ext[:ALD].vstore, JuMP.getobjectivevalue(sp))
+          push!(sp.ext[:ALD].lstore, π)
+          push!(sp.ext[:ALD].rhostore, optrho)
           status = :Optimal
           println(optrho, " ", status)
         else
@@ -247,17 +252,24 @@ function ASDDiPsolve_optrho!(sp::JuMP.Model; require_duals::Bool=false, kwargs..
           # Relax bounds to formulate Lagrangian
           Lagrangian.relaxandcache!(l, sp)
           JuMP.setsolver(sp, solvers.MIP)
-          optrho,status = bissect_rho(sp, π, mipvalue, 0, sp.ext[:ALD].Lip)
+          lip = aldparams(sp).Lip
+          optrho,status = bissect_rho(sp, π, mipvalue, 0, lip)
           println(optrho, " ", status)
           push!(sp.ext[:ALD].vstore, JuMP.getobjectivevalue(sp))
           push!(sp.ext[:ALD].lstore, π)
           push!(sp.ext[:ALD].rhostore, optrho)
 
-          # Undo changes
-          Lagrangian.recover!(l, sp, π)
-          # Solve original problem again to have correct level for automatic SDDP Benders cut
-          JuMP.setsolver(sp, solvers.LP)
-          JuMP.solve(sp, ignore_solve_hook=true, relaxation=true)
+          # Solve problem again to have correct RHS in the SDDP linear cut (Benders / Strenghtened Benders)
+          if aldparams(sp).useSB
+            set_sb_objective!(sp, π)
+            JuMP.solve(sp, ignore_solve_hook=true)
+            # Undo changes
+            sp.obj = l.obj
+            Lagrangian.recover!(l, sp, π)
+          else
+            JuMP.setsolver(sp, solvers.LP)
+            JuMP.solve(sp, ignore_solve_hook=true, relaxation=true)
+          end
         end
     else
         # We are in the forward pass, or we are in stage 1
