@@ -193,22 +193,17 @@ function bissect_rho(sp, π, mipvalue, minrho, maxrho, valuetol=1e-3, rhotol=1e-
   sp.ext[:ALD].rho[1] = candidate
   # Change the MIP objective
   set_ald_objective!(sp, π)
-  #print("Solving for rho = $candidate, ")
   status = JuMP.solve(sp, ignore_solve_hook=true)
   curvalue = JuMP.getobjectivevalue(sp)
   # Go back to previous objective
   sp.obj = lagrangian(sp).obj
-  #println("got $curvalue, while MIP = $mipvalue")
   if maxrho - minrho > rhotol
     if mipvalue - curvalue > valuetol
-      #println("Bissecting $candidate, $maxrho")
       return bissect_rho(sp, π, mipvalue, candidate, maxrho, valuetol, rhotol)
     else
-      #println("Bissecting $minrho, $candidate")
       return bissect_rho(sp, π, mipvalue, minrho, candidate, valuetol, rhotol)
     end
   else
-    #println("Done: $minrho, $candidate, $maxrho, $mipvalue, $curvalue")
     return candidate, status
   end
 end
@@ -225,17 +220,14 @@ function ASDDiPsolve_optrho!(sp::JuMP.Model; require_duals::Bool=false, kwargs..
         # Solve relaxation, then lift to optimal \rho
 
         # Get optimal MIP value
-        println("Solving stage $(SDDP.ext(sp).stage) backwards")
         JuMP.setsolver(sp, solvers.MIP)
         @assert JuMP.solve(sp, ignore_solve_hook=true) == :Optimal
         mipvalue = JuMP.getobjectivevalue(sp)
-        #println("Got MIP value = $mipvalue")
 
         # Get the LP duals
         JuMP.setsolver(sp, solvers.LP)
         @assert JuMP.solve(sp, ignore_solve_hook=true, relaxation=true) == :Optimal
         curvalue = JuMP.getobjectivevalue(sp)
-        #println("Got LP value = $curvalue")
         π  = SDDP.getdual.(SDDP.states(sp))
 
         # Add valuetol as parameter to use here and in bissection
@@ -245,7 +237,6 @@ function ASDDiPsolve_optrho!(sp::JuMP.Model; require_duals::Bool=false, kwargs..
           push!(sp.ext[:ALD].lstore, π)
           push!(sp.ext[:ALD].rhostore, optrho)
           status = :Optimal
-          println(optrho, " ", status)
         else
           # Update slacks because RHSs change each iteration
           # l.slacks = getslack.(l.constraints)
@@ -254,7 +245,6 @@ function ASDDiPsolve_optrho!(sp::JuMP.Model; require_duals::Bool=false, kwargs..
           JuMP.setsolver(sp, solvers.MIP)
           lip = aldparams(sp).Lip
           optrho,status = bissect_rho(sp, π, mipvalue, 0, lip)
-          println(optrho, " ", status)
           push!(sp.ext[:ALD].vstore, JuMP.getobjectivevalue(sp))
           push!(sp.ext[:ALD].lstore, π)
           push!(sp.ext[:ALD].rhostore, optrho)
