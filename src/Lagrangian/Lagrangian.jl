@@ -1,18 +1,31 @@
+# This file includes modified source code from https://github.com/lkapelevich/SDDiP.jl
+# commit a59e55ba227533a399a6b535270f6ce1ba519862
+#############################################################################
+
 module Lagrangian
 using JuMP
 
-export
-# Each method needs to know about the problem being solved
-LinearProgramData
+function sense(c::ConstraintRef)
+    constr = c.m.linconstr[c.idx]
+    if constr.lb == constr.ub
+        return :eq
+    elseif constr.lb == -Inf
+        return :le
+    elseif constr.ub == Inf
+        return :ge
+    end
+    error("Range constraint not supported.")
+end
 
+getdualsense(m::JuMP.Model) = getobjectivesense(m)==:Min? :Max : :Min
+
+# Each method needs to know about the problem being solved
 type LinearProgramData
     obj::QuadExpr                               # objective
     constraints::Vector{<:ConstraintRef}        # constraints being relaxed
     senses::Vector{Symbol}                      # we will cache the sense of constraints
     old_bound::Vector{Float64}                  # cache before relaxing constraints
 end
-
-include("utils.jl")
 
 """
     LinearProgramData(obj::QuadExpr, constraints::Vector{<:ConstraintRef})
