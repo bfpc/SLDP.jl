@@ -108,7 +108,9 @@ function cut_it(m::SDDP.SDDPModel, t::Int, settings::SDDP.Settings; rho=nothing:
     # add appropriate cuts
     for sp in SDDP.subproblems(m, t-1)
         @timeit SDDP.TIMER "Cut addition" begin
-            SDDP.modifyvaluefunction!(m, settings, sp)
+            if !aldparams(sp).tents
+                SDDP.modifyvaluefunction!(m, settings, sp)
+            end
             modify_ald_valuefunction!(m, settings, sp)
         end
     end
@@ -147,6 +149,17 @@ end
 function ALDsolve!(sp::JuMP.Model; require_duals::Bool=false, kwargs...)
     solvers = sp.ext[:solvers]
     if require_duals && SDDP.ext(sp).stage > 1
+        # tents are "easy"
+        if aldparams(sp).tents
+            π = zeros(length(SDDP.states(sp)))
+            JuMP.setsolver(sp, solvers.MIP)
+            status = JuMP.solve(sp, ignore_solve_hook=true)
+            push!(sp.ext[:ALD].vstore, JuMP.getobjectivevalue(sp))
+            push!(sp.ext[:ALD].lstore, π)
+            push!(sp.ext[:ALD].rhostore, sp.ext[:ALD].rho[1])
+            return status
+        end
+
         # Update the objective we cache in case the objective has noises
         l = lagrangian(sp)
         l.obj = JuMP.getobjective(sp)
