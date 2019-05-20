@@ -1,13 +1,3 @@
-# Save the upper and lower bounds of the outgoing variable to be used in the next stage
-function SDDP.postsolve!(:: Type{SDDP.ForwardPass}, m :: SDDP.Model, sp :: JuMP.Model)
-  t = SDDP.ext(sp).stage
-  stage = SDDP.getstage(m, t)
-  for (st,b) in zip(aldstates(sp), stage.ext[:ALDbounds])
-    b[1] = st.lb
-    b[2] = st.ub
-  end
-end
-
 # Adjusts the inequalities to calculate |z - xin| during ALD
 function set_xhat_av!(sp::JuMP.Model, xhat)
   for (st,xi) in zip(aldstates(sp), xhat)
