@@ -218,7 +218,7 @@ function bissect_rho(sp, π, mipvalue, minrho, maxrho, valuetol=1e-3, rhotol=1e-
 end
 
 # Optimal rho solvehook
-function ASDDiPsolve_optrho!(sp::JuMP.Model; require_duals::Bool=false, kwargs...)
+function ALDsolve_optrho!(sp::JuMP.Model; require_duals::Bool=false, kwargs...)
     solvers = sp.ext[:solvers]
     if require_duals && SDDP.ext(sp).stage > 1
         # Update the objective we cache in case the objective has noises

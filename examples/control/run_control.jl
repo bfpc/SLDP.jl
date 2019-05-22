@@ -14,7 +14,7 @@ for (name,ramp,niter) in zip(run_names, ramp_modes, iters)
   controlsolve(m,niter)
 
   SDDP.writecuts!(joinpath("cuts", name*"_benders.cuts"), m)
-  ASDDiP.save_aldcuts!(m, joinpath("cuts", name*"_ald.cuts"))
-  ASDDiP.writelog!(m, joinpath("logs", name*".log"))
+  SLDP.save_aldcuts!(m, joinpath("cuts", name*"_ald.cuts"))
+  SLDP.writelog!(m, joinpath("logs", name*".log"))
 end
 

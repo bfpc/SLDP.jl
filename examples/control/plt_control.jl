@@ -28,7 +28,7 @@ end
 #
 # Graphing code
 #
-import ASDDiP
+import SLDP
 import PyPlot
 import LaTeXStrings: @L_str
 
@@ -36,8 +36,8 @@ import LaTeXStrings: @L_str
 # Comparative plots
 function graph_fcfs(m, t, ts, QTrue; filename=nothing)
     qe = QTrue
-    qt = ASDDiP.Qtilde(m,t,1,ts)
-    qf = ASDDiP.Qfrak(m,t,1,ts)
+    qt = SLDP.Qtilde(m,t,1,ts)
+    qf = SLDP.Qfrak(m,t,1,ts)
 
     fig, (ax1,ax2) = PyPlot.subplots(ncols=2, figsize=(12,4))
     PyPlot.suptitle("Stage $t")
@@ -63,7 +63,7 @@ end
 
 function compare_qfrak(models, t, ts, QTrue; filename=nothing)
     qe = QTrue
-    qf = [ASDDiP.Qfrak(m,t,1,ts) for m in models]
+    qf = [SLDP.Qfrak(m,t,1,ts) for m in models]
 
     fig, (ax1,ax2) = PyPlot.subplots(ncols=2, figsize=(12,4))
     PyPlot.suptitle("Stage $t")

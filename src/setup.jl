@@ -14,18 +14,28 @@ end
 
 """
     setALDsolver!(sp::JuMP.Model, lip::Float64, rho_line::Tuple{Float64,Float64};
-                  tents::Bool=false, maxcuts=0, drop=0, MIPsolver=sp.solver, LPsolver=MIPsolver)
+                  tents::Bool=false, doSB::Bool=true, maxcuts=0, drop=0,
+                  MIPsolver=sp.solver, LPsolver=MIPsolver)
 
-Sets a JuMP solvehook for integer SDDP to stage problem `sp` that will use ALD cuts,
-with maximum lipschitz constant `lip`.
-The value of the lagrangian augmentation parameter rho is given by a*niter + b,
+Sets a JuMP solvehook for integer SDDP to stage problem `sp` that will use non-convex cuts,
+with maximum Lipschitz constant `lip`.
+
+If tents=true, then we use reverse 1-norm cuts, with Lipschitz constant lip.
+
+If tents=false, then we use strengthened augmented Benders cuts.
+The value of the Lagrangian augmentation parameter rho is given by a*niter + b,
 where (a,b) = `rho_line`.
+If doSB=true, then also add a linear strengthened Benders cut;
+if doSB=false, then also add a linear Benders cut.
+Generally, one should use doSB=true.
 
+You should specify an LP/MIP solver if you are using SA-Benders cuts,
+and your solver can't solve both MIPs and LPs.
+
+
+For future use, we have two extra parameters.
 The solver will store at most `maxcuts` ALD cuts (0 = infinite),
 and will remove ALD cuts according to `drop`.
-
-You should specify an LP/MIP solver if you are using different cut types in a cut
-pattern, and you are not using a solver that can solve both MIPs and LPs.
 """
 function setALDsolver!(sp::JuMP.Model, lip::Float64, rho_line::Tuple{Float64,Float64};
                        doSB::Bool=true, tents::Bool=false, maxcuts=0, drop=0,

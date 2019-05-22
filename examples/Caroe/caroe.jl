@@ -1,6 +1,6 @@
 import JuMP: @variable, @constraint
 import SDDP: SDDPModel, @state, @rhsnoise, @stageobjective
-import ASDDiP: prepareALD!, setALDsolver!, ASDDiPsolve_optrho!
+import SLDP: prepareALD!, setALDsolver!, ALDsolve_optrho!
 
 import Gurobi: GurobiSolver
 
@@ -115,7 +115,7 @@ if ramp_mode == :opt_rho
   prepareALD!(m)
   for stage in SDDP.stages(m)
     for sp in SDDP.subproblems(stage)
-      JuMP.setsolvehook(sp, ASDDiPsolve_optrho!)
+      JuMP.setsolvehook(sp, ALDsolve_optrho!)
     end
   end
 else

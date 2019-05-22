@@ -1,4 +1,4 @@
-import ASDDiP
+import SLDP
 
 include("../examples/Caroe/caroe.jl")
 
@@ -11,7 +11,7 @@ for x in ts
     @time for y in ts
         i += 1
         print(i, ",")
-        v = ASDDiP.Qtilde(m,1,1,x,y)
+        v = SLDP.Qtilde(m,1,1,x,y)
         push!(fcf2, v)
     end
 end

@@ -18,8 +18,8 @@ for (basename,ramp) in [("SB", :None)]
     controlsolve(m,niter)
 
     SDDP.writecuts!(joinpath("cuts", name*"_benders.cuts"), m)
-    ASDDiP.save_aldcuts!(m, joinpath("cuts", name*"_ald.cuts"))
-    ASDDiP.writelog!(m, joinpath("logs", name*".log"))
+    SLDP.save_aldcuts!(m, joinpath("cuts", name*"_ald.cuts"))
+    SLDP.writelog!(m, joinpath("logs", name*".log"))
   end
 end
 for (basename,ramp) in [("ALD simple", :simple), ("ALD parallel", :parallel)]
@@ -33,8 +33,8 @@ for (basename,ramp) in [("ALD simple", :simple), ("ALD parallel", :parallel)]
       controlsolve(m,niter)
 
       SDDP.writecuts!(joinpath("cuts", name*"_benders.cuts"), m)
-      ASDDiP.save_aldcuts!(m, joinpath("cuts", name*"_ald.cuts"))
-      ASDDiP.writelog!(m, joinpath("logs", name*".log"))
+      SLDP.save_aldcuts!(m, joinpath("cuts", name*"_ald.cuts"))
+      SLDP.writelog!(m, joinpath("logs", name*".log"))
     end
   end
 end
